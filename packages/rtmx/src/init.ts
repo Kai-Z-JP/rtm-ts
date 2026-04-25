@@ -32,6 +32,7 @@ const TSCONFIG_JSON = JSON.stringify(
   {
     compilerOptions: {
       target: "ES5",
+      lib: ["ES5"],
       module: "commonjs",
       moduleResolution: "node",
       strict: true,
