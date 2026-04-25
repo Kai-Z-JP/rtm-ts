@@ -1,0 +1,21 @@
+{
+  "name": "sample",
+  "srcDir": "src",
+  "outDir": "dist",
+  "scan": {
+    "minecraftVersion": "1.7.10",
+    "forgeVersion": "10.13.4.1614",
+    "channel": "stable",
+    "mappingsVersion": "12",
+    "mods": [
+      "com.github.Kai-Z-JP:KaizPatchX:v1.9.5"
+    ],
+    "packages": [
+      "net.minecraft",
+      "net.minecraftforge",
+      "cpw.mods",
+      "jp.ngt",
+      "org.lwjgl"
+    ]
+  }
+}

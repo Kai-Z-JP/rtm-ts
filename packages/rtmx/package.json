@@ -1,0 +1,46 @@
+{
+  "name": "rtm-ts",
+  "version": "0.1.0",
+  "description": "TypeScript toolchain for RTM/Minecraft 1.7.10 scripting",
+  "keywords": [
+    "minecraft",
+    "rtm",
+    "typescript",
+    "forge",
+    "nashorn"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kai-Z-JP/rtm-ts.git"
+  },
+  "homepage": "https://github.com/Kai-Z-JP/rtm-ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "rtmx": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "template",
+    "jars",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "typescript": "^5.0.0",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "vitest": "^1.0.0"
+  }
+}

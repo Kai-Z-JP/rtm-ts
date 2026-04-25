@@ -1,0 +1,5 @@
+dist/
+node_modules/
+*.gradle.kts
+gradlew
+gradlew.bat

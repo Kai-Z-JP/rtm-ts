@@ -1,0 +1,18 @@
+org.gradle.jvmargs=-Xmx2g
+# populated by rtmx generate
+modName = RtmxInternal
+modId = rtmxinternal
+modGroup = jp.kaiz.rtmxinternal
+useModGroupForPublishing = false
+autoUpdateBuildScript = false
+minecraftVersion = {{MINECRAFT_VERSION}}
+forgeVersion = {{FORGE_VERSION}}
+channel = {{CHANNEL}}
+mappingsVersion = {{MAPPINGS_VERSION}}
+remoteMappings = https\://raw.githubusercontent.com/MinecraftForge/FML/1.7.10/conf/
+developmentEnvironmentUserName = Developer
+enableModernJavaSyntax = false
+enableGenericInjection = true
+includeWellKnownRepositories = true
+usesMavenPublishing = false
+usesShadowedDependencies = false

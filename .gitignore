@@ -1,0 +1,27 @@
+# Node
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Gradle
+.gradle/
+run/
+
+# rtmx generated
+sample/generated/
+
+# Built JARs (produced by installScannerJar)
+packages/rtmx/jars/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# kotlin
+.kotlin/
+
+# npmrc
+.npmrc

@@ -1,0 +1,70 @@
+import groovy.json.JsonOutput
+
+plugins {
+    id("com.gtnewhorizons.gtnhgradle") version "2.0.24"
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
+repositories {
+    maven {
+        name = "GTNH Maven"
+        url = uri("https://nexus.gtnewhorizons.com/repository/public/")
+    }
+    maven {
+        url = uri("https://jitpack.io")
+        content { includeGroupByRegex("com\\.github\\..*") }
+    }
+}
+
+configurations.all {
+    exclude(group = "net.minecraftforge.forgegradle.legacy")
+}
+
+dependencies {
+    // {{DEPENDENCIES}}
+}
+
+val srgMappingsTask = tasks.named(
+    "generateForgeSrgMappings",
+    com.gtnewhorizons.retrofuturagradle.mcp.GenSrgMappingsTask::class.java
+)
+val recompileTask = tasks.named(
+    "packagePatchedMc",
+    org.gradle.jvm.tasks.Jar::class.java
+)
+
+tasks.register("exportRtmPaths") {
+    dependsOn("setupDecompWorkspace", "deobfuscateMergedJarToSrg", "generateForgeSrgMappings")
+
+    doLast {
+        val deobfJar = recompileTask.get().archiveFile.get().asFile.absolutePath
+        val srgToMcp = srgMappingsTask.get().srgToMcp.get().asFile.absolutePath
+        val mcpToSrg = srgMappingsTask.get().mcpToSrg.get().asFile.absolutePath
+
+        val compileCpList = configurations["compileClasspath"].files
+            .filter { it.exists() }
+            .map { it.absolutePath }
+
+        val data = mapOf(
+            "deobfJar" to deobfJar,
+            "srgToMcpFile" to srgToMcp,
+            "mcpToSrgFile" to mcpToSrg,
+            "compileClasspath" to compileCpList
+        )
+
+        val json = JsonOutput.toJson(data)
+        val prettyJson = JsonOutput.prettyPrint(json)
+
+        layout.buildDirectory.file("rtm-paths.json").get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(prettyJson, Charsets.UTF_8)
+        }
+
+        println("rtm-paths.json written to ${layout.buildDirectory.file("rtm-paths.json").get().asFile}")
+    }
+}
