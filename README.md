@@ -74,12 +74,6 @@ pnpm build  # TypeScript コンパイル
 gradle-java-home=/path/to/jdk25
 ```
 
-コマンドラインから一時的に指定することもできます。
-
-```sh
-pnpm gen --gradle-java-home=/path/to/jdk25
-```
-
 設定されている場合、Gradle 実行時の `JAVA_HOME` がその値で上書きされます。未設定のときはシステムの `JAVA_HOME` / PATH が使われます。
 
 ### `typings` / `mapping` を手動指定する場合
