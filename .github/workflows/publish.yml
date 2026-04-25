@@ -30,7 +30,7 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
       - name: Install scanner jar
-        run: ./gradlew :gradle-generator:installScannerJar
+        run: chmod +x gradlew && ./gradlew :gradle-generator:installScannerJar
       - name: Build
         run: pnpm --filter rtm-ts run build
       - name: Publish
