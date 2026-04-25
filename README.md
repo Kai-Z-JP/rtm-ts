@@ -1,4 +1,6 @@
 # rtm-ts
+[![NPNVer](https://img.shields.io/npm/v/rtm-ts?style=flat-square)](https://www.npmjs.com/package/rtm-ts)
+
 TypeScript toolchain for [KaizParch/RTM (Real Train Mod)](https://github.com/Kai-Z-JP/KaizPatchX) / Minecraft 1.7.10 scripting.
 
 RTM のスクリプト (Nashorn JS) を TypeScript で書けるようにします。Minecraft の Java クラスから自動で型定義 (`.d.ts`) を生成し、MCP → SRG のフィールド名変換も行います。
