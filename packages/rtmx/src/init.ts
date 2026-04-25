@@ -38,6 +38,7 @@ const TSCONFIG_JSON = JSON.stringify(
       strict: true,
       skipLibCheck: true,
       noEmit: true,
+      ignoreDeprecations: "6.0",
     },
     include: ["src/**/*.ts", "generated/typings/**/*.d.ts"],
   },
