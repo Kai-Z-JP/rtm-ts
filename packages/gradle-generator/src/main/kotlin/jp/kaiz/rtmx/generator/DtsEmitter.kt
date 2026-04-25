@@ -1,9 +1,28 @@
 package jp.kaiz.rtmx.generator
 
 import java.io.File
+import java.lang.reflect.GenericArrayType
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Type
+import java.lang.reflect.TypeVariable
+import java.lang.reflect.WildcardType
 
 object DtsEmitter {
-    private fun pkgToNs(pkg: String) = pkg
+    // TSでは予約語をIdentifierとして使えないため、末尾にアンダースコアを付与して回避する
+    private val TS_RESERVED = setOf(
+        "break", "case", "catch", "class", "const", "continue", "debugger",
+        "default", "delete", "do", "else", "enum", "export", "extends",
+        "false", "finally", "for", "function", "if", "import", "in",
+        "instanceof", "new", "null", "return", "super", "switch", "this",
+        "throw", "true", "try", "typeof", "var", "void", "while", "with",
+        "as", "implements", "interface", "let", "package", "private",
+        "protected", "public", "static", "yield"
+    )
+
+    private fun sanitizeSegment(s: String) = if (s in TS_RESERVED) "${s}_" else s
+
+    // "java.util.function" → "java.util.function_"
+    private fun pkgToNs(pkg: String) = pkg.split('.').joinToString(".") { sanitizeSegment(it) }
 
     fun emit(classes: List<JavaClass>, outputDir: File) {
         outputDir.mkdirs()
@@ -37,12 +56,21 @@ object DtsEmitter {
 
     private fun emitNsClass(cls: JavaClass, sb: StringBuilder) {
         val simpleName = cls.fqn.substringAfterLast('.')
-        val extendsClause = cls.superclass?.let { " extends ${fqnToNsRef(it)}" } ?: ""
+
+        val typeParamsStr = cls.typeParams
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(", ", "<", ">") { tp ->
+                val bounds = tp.upperBounds.filter { it != java.lang.Object::class.java }
+                if (bounds.isEmpty()) "${tp.name} = any"
+                else "${tp.name} extends ${bounds.joinToString(" & ") { typeToTs(it) }} = any"
+            } ?: ""
+
+        val extendsClause = cls.superclass?.let { " extends ${typeToTs(it)}" } ?: ""
         val implementsClause = cls.superInterfaces
             .takeIf { it.isNotEmpty() }
-            ?.joinToString(", ", " implements ") { fqnToNsRef(it) } ?: ""
+            ?.joinToString(", ", " implements ") { typeToTs(it) } ?: ""
 
-        sb.appendLine("  class $simpleName$extendsClause$implementsClause {")
+        sb.appendLine("  class $simpleName$typeParamsStr$extendsClause$implementsClause {")
 
         for (ctor in cls.constructors) {
             val params = buildParams(ctor.paramTypes, ctor.isVarArgs)
@@ -50,12 +78,12 @@ object DtsEmitter {
         }
         for (f in cls.fields) {
             val static = if (f.isStatic) "static " else ""
-            sb.appendLine("    ${static}${f.name}: ${classToTs(f.javaType)};")
+            sb.appendLine("    ${static}${f.name}: ${typeToTs(f.javaType)};")
         }
         for (m in cls.methods) {
             val static = if (m.isStatic) "static " else ""
             val params = buildParams(m.paramTypes, m.isVarArgs)
-            sb.appendLine("    ${static}${m.name}($params): ${classToTs(m.returnType)};")
+            sb.appendLine("    ${static}${m.name}($params): ${typeToTs(m.returnType)};")
         }
 
         sb.appendLine("  }")
@@ -67,15 +95,43 @@ object DtsEmitter {
         return "${pkgToNs(pkg)}.$name"
     }
 
-    private fun buildParams(paramTypes: List<Class<*>>, isVarArgs: Boolean): String {
+    private fun buildParams(paramTypes: List<Type>, isVarArgs: Boolean): String {
         if (paramTypes.isEmpty()) return ""
         return paramTypes.mapIndexed { i, t ->
             if (isVarArgs && i == paramTypes.lastIndex) {
-                "...p$i: ${classToTs(t.componentType ?: t)}[]"
+                val elemType = when (t) {
+                    is GenericArrayType -> typeToTs(t.genericComponentType)
+                    is Class<*> -> typeToTs(t.componentType ?: t)
+                    else -> typeToTs(t)
+                }
+                "...p$i: $elemType[]"
             } else {
-                "p$i: ${classToTs(t)}"
+                "p$i: ${typeToTs(t)}"
             }
         }.joinToString(", ")
+    }
+
+    internal fun typeToTs(type: Type): String {
+        return when (type) {
+            is Class<*> -> classToTs(type)
+            is ParameterizedType -> {
+                val raw = type.rawType as? Class<*> ?: return "any"
+                val rawRef = classToTs(raw)
+                if (rawRef in PRIMITIVE_TS_TYPES) rawRef
+                else {
+                    val args = type.actualTypeArguments.map { typeToTs(it) }
+                    "$rawRef<${args.joinToString(", ")}>"
+                }
+            }
+            is TypeVariable<*> -> type.name
+            is WildcardType -> {
+                val upper = type.upperBounds.firstOrNull()
+                if (upper != null && upper != java.lang.Object::class.java) typeToTs(upper)
+                else "any"
+            }
+            is GenericArrayType -> "${typeToTs(type.genericComponentType)}[]"
+            else -> "any"
+        }
     }
 
     private fun classToTs(cls: Class<*>): String {
@@ -87,10 +143,7 @@ object DtsEmitter {
             java.lang.Void.TYPE -> "void"
             else -> "any"
         }
-        if (cls.isArray) {
-            val elem = cls.componentType
-            return if (!elem.isArray) "${classToTs(elem)}[]" else "any[]"
-        }
+        if (cls.isArray) return "${typeToTs(cls.componentType)}[]"
         return when (cls) {
             java.lang.String::class.java, java.lang.CharSequence::class.java -> "string"
             java.lang.Boolean::class.java -> "boolean"
@@ -108,4 +161,6 @@ object DtsEmitter {
             }
         }
     }
+
+    private val PRIMITIVE_TS_TYPES = setOf("any", "string", "number", "boolean", "void")
 }
