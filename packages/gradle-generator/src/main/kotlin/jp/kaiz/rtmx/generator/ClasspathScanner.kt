@@ -25,7 +25,9 @@ data class JavaClass(
     val superInterfaces: List<Type>,
     val constructors: List<JavaConstructor>,
     val fields: List<JavaField>,
-    val methods: List<JavaMethod>
+    val methods: List<JavaMethod>,
+    val isInterface: Boolean = false,
+    val isAbstract: Boolean = false
 )
 
 object ClasspathScanner {
@@ -146,7 +148,17 @@ object ClasspathScanner {
                 }.getOrNull()
             }
 
-        return JavaClass(cls.name, typeParams, superclass, superInterfaces, constructors, fields, methods)
+        return JavaClass(
+            cls.name,
+            typeParams,
+            superclass,
+            superInterfaces,
+            constructors,
+            fields,
+            methods,
+            cls.isInterface,
+            Modifier.isAbstract(cls.modifiers)
+        )
     }
 
     private fun isJdkPackage(prefix: String) =

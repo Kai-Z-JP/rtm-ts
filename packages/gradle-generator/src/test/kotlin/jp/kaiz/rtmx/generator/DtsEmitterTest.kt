@@ -115,4 +115,90 @@ class DtsEmitterTest {
         val content = tempDir.listFiles()!![0].readText()
         assertTrue(content.contains("class ArrayList<E"), "型パラメータ E が出力されること")
     }
+
+    @Test
+    fun `Java interface は TypeScript interface として生成される`() {
+        val senderInterface = JavaClass(
+            fqn = "net.minecraft.command.ICommandSender",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = listOf(
+                JavaMethod(
+                    name = "getCommandSenderName",
+                    paramTypes = emptyList(),
+                    returnType = String::class.java,
+                    isStatic = false,
+                    isVarArgs = false
+                )
+            ),
+            isInterface = true
+        )
+
+        DtsEmitter.emit(listOf(senderInterface), tempDir)
+        val content = tempDir.listFiles()!![0].readText()
+        assertTrue(content.contains("interface ICommandSender"), "TS interface として出力されること")
+        assertFalse(content.contains("class ICommandSender"), "Java interface を class として出力しないこと")
+    }
+
+    @Test
+    fun `Java abstract class の未実装 interface メソッドは abstract メソッドとして反映される`() {
+        val runnableInterface = JavaClass(
+            fqn = "java.lang.Runnable",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = listOf(
+                JavaMethod(
+                    name = "run",
+                    paramTypes = emptyList(),
+                    returnType = java.lang.Void.TYPE,
+                    isStatic = false,
+                    isVarArgs = false
+                )
+            ),
+            isInterface = true
+        )
+        val playerClass = JavaClass(
+            fqn = "net.minecraft.entity.player.EntityPlayer",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = listOf(Runnable::class.java),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = emptyList(),
+            isAbstract = true
+        )
+
+        DtsEmitter.emit(listOf(runnableInterface, playerClass), tempDir)
+        val content = tempDir.resolve("net_minecraft_entity_player.d.ts").readText()
+        assertTrue(
+            content.contains("abstract class EntityPlayer implements java.lang.Runnable {"),
+            "abstract class の implements として出力されること"
+        )
+        assertFalse(content.contains("interface EntityPlayer"), "存在しない EntityPlayer interface を出力しないこと")
+        assertTrue(content.contains("abstract run(): void;"), "未実装 interface メソッドを abstract メソッドとして出力すること")
+    }
+
+    @Test
+    fun `Java abstract class は TypeScript abstract class として生成される`() {
+        val abstractPlayerClass = JavaClass(
+            fqn = "net.minecraft.entity.player.EntityPlayer",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = emptyList(),
+            isAbstract = true
+        )
+
+        DtsEmitter.emit(listOf(abstractPlayerClass), tempDir)
+        val content = tempDir.listFiles()!![0].readText()
+        assertTrue(content.contains("abstract class EntityPlayer {"), "abstract class として出力されること")
+    }
 }

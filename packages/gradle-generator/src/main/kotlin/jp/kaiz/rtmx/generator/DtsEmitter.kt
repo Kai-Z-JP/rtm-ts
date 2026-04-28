@@ -27,6 +27,7 @@ object DtsEmitter {
     fun emit(classes: List<JavaClass>, outputDir: File) {
         outputDir.mkdirs()
         val byPackage = classes.groupBy { it.fqn.substringBeforeLast('.') }
+        val byFqn = classes.associateBy { it.fqn }
 
         for ((pkg, pkgClasses) in byPackage) {
             val ns = pkgToNs(pkg)
@@ -37,7 +38,7 @@ object DtsEmitter {
             // Namespace block — holds actual class declarations with real extends chains
             sb.appendLine("declare namespace $ns {")
             for (cls in pkgClasses) {
-                emitNsClass(cls, sb)
+                emitNsClass(cls, sb, byFqn)
             }
             sb.appendLine("}")
             sb.appendLine()
@@ -54,7 +55,7 @@ object DtsEmitter {
         }
     }
 
-    private fun emitNsClass(cls: JavaClass, sb: StringBuilder) {
+    private fun emitNsClass(cls: JavaClass, sb: StringBuilder, byFqn: Map<String, JavaClass>) {
         val simpleName = cls.fqn.substringAfterLast('.')
 
         val typeParamsStr = cls.typeParams
@@ -65,12 +66,45 @@ object DtsEmitter {
                 else "${tp.name} extends ${bounds.joinToString(" & ") { typeToTs(it) }} = any"
             } ?: ""
 
+        if (cls.isInterface) {
+            val extendsClause = cls.superInterfaces
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString(", ", " extends ") { typeToTs(it) } ?: ""
+
+            sb.appendLine("  interface $simpleName$typeParamsStr$extendsClause {")
+            for (f in cls.fields.filterNot { it.isStatic }) {
+                sb.appendLine("    ${f.name}: ${typeToTs(f.javaType)};")
+            }
+            for (m in cls.methods.filterNot { it.isStatic }) {
+                val params = buildParams(m.paramTypes, m.isVarArgs)
+                sb.appendLine("    ${m.name}($params): ${typeToTs(m.returnType)};")
+            }
+            sb.appendLine("  }")
+
+            val staticFields = cls.fields.filter { it.isStatic }
+            val staticMethods = cls.methods.filter { it.isStatic }
+            if (staticFields.isNotEmpty() || staticMethods.isNotEmpty()) {
+                sb.appendLine("  namespace $simpleName {")
+                for (f in staticFields) {
+                    sb.appendLine("    const ${f.name}: ${typeToTs(f.javaType)};")
+                }
+                for (m in staticMethods) {
+                    val params = buildParams(m.paramTypes, m.isVarArgs)
+                    sb.appendLine("    function ${m.name}($params): ${typeToTs(m.returnType)};")
+                }
+                sb.appendLine("  }")
+            }
+            return
+        }
+
         val extendsClause = cls.superclass?.let { " extends ${typeToTs(it)}" } ?: ""
+        val abstractModifier = if (cls.isAbstract) "abstract " else ""
         val implementsClause = cls.superInterfaces
             .takeIf { it.isNotEmpty() }
             ?.joinToString(", ", " implements ") { typeToTs(it) } ?: ""
 
-        sb.appendLine("  class $simpleName$typeParamsStr$extendsClause$implementsClause {")
+        sb.appendLine("  ${abstractModifier}class $simpleName$typeParamsStr$extendsClause$implementsClause {")
+        val emittedInstanceMethods = mutableSetOf<String>()
 
         for (ctor in cls.constructors) {
             val params = buildParams(ctor.paramTypes, ctor.isVarArgs)
@@ -84,6 +118,18 @@ object DtsEmitter {
             val static = if (m.isStatic) "static " else ""
             val params = buildParams(m.paramTypes, m.isVarArgs)
             sb.appendLine("    ${static}${m.name}($params): ${typeToTs(m.returnType)};")
+            if (!m.isStatic) emittedInstanceMethods.add(methodKey(m))
+        }
+
+        if (cls.isAbstract) {
+            for (iface in collectInterfaces(cls.superInterfaces, byFqn)) {
+                for (m in iface.methods.filterNot { it.isStatic }) {
+                    if (emittedInstanceMethods.add(methodKey(m))) {
+                        val params = buildParams(m.paramTypes, m.isVarArgs)
+                        sb.appendLine("    abstract ${m.name}($params): ${typeToTs(m.returnType)};")
+                    }
+                }
+            }
         }
 
         sb.appendLine("  }")
@@ -110,6 +156,30 @@ object DtsEmitter {
             }
         }.joinToString(", ")
     }
+
+    private fun collectInterfaces(types: List<Type>, byFqn: Map<String, JavaClass>): List<JavaClass> {
+        val result = mutableListOf<JavaClass>()
+        val seen = mutableSetOf<String>()
+
+        fun visit(type: Type) {
+            val iface = rawClassName(type)?.let(byFqn::get) ?: return
+            if (!iface.isInterface || !seen.add(iface.fqn)) return
+            result.add(iface)
+            iface.superInterfaces.forEach(::visit)
+        }
+
+        types.forEach(::visit)
+        return result
+    }
+
+    private fun rawClassName(type: Type): String? = when (type) {
+        is Class<*> -> type.name
+        is ParameterizedType -> (type.rawType as? Class<*>)?.name
+        else -> null
+    }
+
+    private fun methodKey(method: JavaMethod): String =
+        "${method.name}(${method.paramTypes.joinToString(",") { typeToTs(it) }}):${typeToTs(method.returnType)}"
 
     internal fun typeToTs(type: Type): String {
         return when (type) {
