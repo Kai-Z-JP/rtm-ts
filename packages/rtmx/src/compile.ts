@@ -41,6 +41,7 @@ export function compile(config: RtmxConfig): boolean {
 
   const transformers: ts.CustomTransformers = {
     before: [
+      createStripExportsTransformer(),
       createRendererClassTransformer(checker),
       createNashornCompatTransformer(rtmDiagnostics),
       createJavaImportTransformer(checker, rtmDiagnostics),
@@ -147,6 +148,73 @@ function stripModuleBoilerplate(text: string, outputFile: string, outDir: string
   }
 
   return text;
+}
+
+function createStripExportsTransformer(): ts.TransformerFactory<ts.SourceFile> {
+  return (context) => {
+    const stripExportModifier = (modifiers?: ts.NodeArray<ts.ModifierLike>) => {
+      const next = modifiers?.filter(
+        (modifier) =>
+          !ts.isModifier(modifier) ||
+          (modifier.kind !== ts.SyntaxKind.ExportKeyword &&
+            modifier.kind !== ts.SyntaxKind.DefaultKeyword)
+      );
+      return next && next.length > 0 ? next : undefined;
+    };
+
+    const visit: ts.Visitor = (node) => {
+      if (ts.isExportDeclaration(node) || ts.isExportAssignment(node)) {
+        return undefined;
+      }
+
+      if (ts.canHaveModifiers(node)) {
+        const modifiers = ts.getModifiers(node);
+        if (modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+          if (ts.isFunctionDeclaration(node)) {
+            return ts.factory.updateFunctionDeclaration(
+              node,
+              stripExportModifier(node.modifiers),
+              node.asteriskToken,
+              node.name,
+              node.typeParameters,
+              node.parameters,
+              node.type,
+              node.body
+            );
+          }
+          if (ts.isClassDeclaration(node)) {
+            return ts.factory.updateClassDeclaration(
+              node,
+              stripExportModifier(node.modifiers),
+              node.name,
+              node.typeParameters,
+              node.heritageClauses,
+              node.members
+            );
+          }
+          if (ts.isVariableStatement(node)) {
+            return ts.factory.updateVariableStatement(
+              node,
+              stripExportModifier(node.modifiers),
+              node.declarationList
+            );
+          }
+          if (ts.isEnumDeclaration(node)) {
+            return ts.factory.updateEnumDeclaration(
+              node,
+              stripExportModifier(node.modifiers),
+              node.name,
+              node.members
+            );
+          }
+        }
+      }
+
+      return ts.visitEachChild(node, visit, context);
+    };
+
+    return (sourceFile) => ts.visitEachChild(sourceFile, visit, context);
+  };
 }
 
 function expandGlob(pattern: string): string[] {
