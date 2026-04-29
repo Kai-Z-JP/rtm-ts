@@ -7,10 +7,18 @@ declare const renderer: any;
 
 declare module "net.minecraft.entity" {
   export class Entity {
+    rotationYaw: number;
     posX: number;
     posY: number;
     posZ: number;
     getDistance(x: number, y: number, z: number): number;
+    setDead(): void;
+  }
+
+  export class VehicleBase<T = any> extends Entity {
+  }
+
+  export class Vehicle extends VehicleBase<string> {
   }
 }
 
@@ -33,11 +41,13 @@ export const FIXTURE_MAPPINGS = {
     "net.minecraft.entity.Entity": {
       srg: "net.minecraft.entity.Entity",
       fields: {
+        rotationYaw: { srg: "field_70177_z", desc: "F" },
         posX: { srg: "field_70165_t", desc: "D" },
         posY: { srg: "field_70163_p", desc: "D" },
       },
       methods: {
         "getDistance(DDD)D": { srg: "func_70011_f" },
+        "setDead()V": { srg: "func_70106_y" },
       },
     },
   },

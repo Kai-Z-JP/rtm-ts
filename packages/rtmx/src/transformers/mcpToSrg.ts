@@ -110,7 +110,7 @@ function lookupFieldInHierarchy(
     const found = lookupField(mappings, fqn, fieldName);
     if (found) return found;
   }
-  for (const base of type.getBaseTypes() ?? []) {
+  for (const base of getBaseTypes(type)) {
     const found = lookupFieldInHierarchy(mappings, base, fieldName, checker);
     if (found) return found;
   }
@@ -128,11 +128,23 @@ function lookupMethodInHierarchy(
     const found = lookupMethod(mappings, fqn, descriptor);
     if (found) return found;
   }
-  for (const base of type.getBaseTypes() ?? []) {
+  for (const base of getBaseTypes(type)) {
     const found = lookupMethodInHierarchy(mappings, base, descriptor, checker);
     if (found) return found;
   }
   return undefined;
+}
+
+function getBaseTypes(type: ts.Type): ts.BaseType[] {
+  const bases = type.getBaseTypes() ?? [];
+  if (bases.length > 0) return bases;
+
+  const target = (type as ts.TypeReference).target;
+  if (target && target !== type) {
+    return target.getBaseTypes() ?? [];
+  }
+
+  return [];
 }
 
 function isAnyOrUnknown(type: ts.Type): boolean {

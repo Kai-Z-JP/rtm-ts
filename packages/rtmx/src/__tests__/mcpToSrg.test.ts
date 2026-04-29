@@ -35,6 +35,20 @@ const d = e.getDistance(0, 64, 0);`,
     expect(js).not.toContain("e.getDistance");
   });
 
+  it("generic base class を挟んだ継承元の method/field も変換される", () => {
+    const { js } = transform(
+      `import { Vehicle } from "net.minecraft.entity";
+const entity: Vehicle = renderer as any;
+entity.setDead();
+entity.rotationYaw = 0;`,
+      makeTransformers
+    );
+    expect(js).toContain("entity.func_70106_y()");
+    expect(js).toContain("entity.field_70177_z = 0");
+    expect(js).not.toContain("entity.setDead");
+    expect(js).not.toContain("entity.rotationYaw");
+  });
+
   it("GL11 static method は SRG 変換せず Packages import のみ", () => {
     const { js } = transform(
       `import { GL11 } from "org.lwjgl.opengl";
