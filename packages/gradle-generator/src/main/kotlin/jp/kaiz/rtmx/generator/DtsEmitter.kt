@@ -116,8 +116,9 @@ object DtsEmitter {
         }
         for (m in cls.methods) {
             val static = if (m.isStatic) "static " else ""
+            val override = if (!m.isStatic && overridesSuperclassMethod(cls, m, byFqn)) "override " else ""
             val params = buildParams(m.paramTypes, m.isVarArgs)
-            sb.appendLine("    ${static}${m.name}($params): ${typeToTs(m.returnType)};")
+            sb.appendLine("    ${static}${override}${m.name}($params): ${typeToTs(m.returnType)};")
             if (!m.isStatic) emittedInstanceMethods.add(methodKey(m))
         }
 
@@ -172,6 +173,22 @@ object DtsEmitter {
         return result
     }
 
+    private fun overridesSuperclassMethod(
+        cls: JavaClass,
+        method: JavaMethod,
+        byFqn: Map<String, JavaClass>
+    ): Boolean {
+        val key = methodSignatureKey(method)
+
+        fun visit(type: Type?): Boolean {
+            val superClass = type?.let(::rawClassName)?.let(byFqn::get) ?: return false
+            if (superClass.methods.any { !it.isStatic && methodSignatureKey(it) == key }) return true
+            return visit(superClass.superclass)
+        }
+
+        return visit(cls.superclass)
+    }
+
     private fun rawClassName(type: Type): String? = when (type) {
         is Class<*> -> type.name
         is ParameterizedType -> (type.rawType as? Class<*>)?.name
@@ -180,6 +197,16 @@ object DtsEmitter {
 
     private fun methodKey(method: JavaMethod): String =
         "${method.name}(${method.paramTypes.joinToString(",") { typeToTs(it) }}):${typeToTs(method.returnType)}"
+
+    private fun methodSignatureKey(method: JavaMethod): String =
+        "${method.name}(${method.paramTypes.joinToString(",") { rawTypeKey(it) }})"
+
+    private fun rawTypeKey(type: Type): String = when (type) {
+        is Class<*> -> type.name
+        is ParameterizedType -> (type.rawType as? Class<*>)?.name ?: type.typeName
+        is GenericArrayType -> "${rawTypeKey(type.genericComponentType)}[]"
+        else -> type.typeName
+    }
 
     internal fun typeToTs(type: Type): String {
         return when (type) {

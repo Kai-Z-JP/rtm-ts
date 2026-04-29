@@ -201,4 +201,55 @@ class DtsEmitterTest {
         val content = tempDir.listFiles()!![0].readText()
         assertTrue(content.contains("abstract class EntityPlayer {"), "abstract class として出力されること")
     }
+
+    @Test
+    fun `superclass の method を上書きする場合は override modifier を出力する`() {
+        val baseClass = JavaClass(
+            fqn = "java.lang.RuntimeException",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = listOf(
+                JavaMethod(
+                    name = "getMessage",
+                    paramTypes = emptyList(),
+                    returnType = String::class.java,
+                    isStatic = false,
+                    isVarArgs = false
+                )
+            )
+        )
+        val vehicleClass = JavaClass(
+            fqn = "jp.ngt.rtm.entity.vehicle.EntityVehicleBase",
+            typeParams = emptyList(),
+            superclass = RuntimeException::class.java,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = listOf(
+                JavaMethod(
+                    name = "getMessage",
+                    paramTypes = emptyList(),
+                    returnType = String::class.java,
+                    isStatic = false,
+                    isVarArgs = false
+                ),
+                JavaMethod(
+                    name = "getSpeed",
+                    paramTypes = emptyList(),
+                    returnType = java.lang.Double.TYPE,
+                    isStatic = false,
+                    isVarArgs = false
+                )
+            )
+        )
+
+        DtsEmitter.emit(listOf(baseClass, vehicleClass), tempDir)
+        val content = tempDir.resolve("jp_ngt_rtm_entity_vehicle.d.ts").readText()
+        assertTrue(content.contains("override getMessage(): string;"), "override method に modifier が付くこと")
+        assertTrue(content.contains("getSpeed(): number;"), "通常 method は出力されること")
+        assertFalse(content.contains("override getSpeed"), "override でない method には modifier を付けないこと")
+    }
 }
