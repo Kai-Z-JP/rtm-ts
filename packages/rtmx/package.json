@@ -1,6 +1,6 @@
 {
   "name": "rtm-ts",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "TypeScript toolchain for RTM/Minecraft 1.7.10 scripting",
   "keywords": [
     "minecraft",
