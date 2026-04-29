@@ -1,5 +1,11 @@
 import ts from "typescript";
-import { MappingJson, lookupField, lookupMethod, typeToDescriptor } from "../mappings.js";
+import {
+  MappingJson,
+  lookupField,
+  lookupMethod,
+  lookupMethodByNameAndArgs,
+  typeToDescriptor,
+} from "../mappings.js";
 import { RTM_DIAGNOSTICS } from "../diagnostics.js";
 
 /**
@@ -71,7 +77,14 @@ export function createMcpToSrgTransformer(
         const retDesc = retType ? typeToDescriptor(checker.typeToString(retType)) : "V";
 
         const descriptor = `${methodName}(${argTypes.join("")})${retDesc}`;
-        const srgMethod = lookupMethodInHierarchy(mappings, objType, descriptor, checker);
+        const srgMethod = lookupMethodInHierarchy(
+          mappings,
+          objType,
+          descriptor,
+          methodName,
+          argTypes,
+          checker
+        );
 
         const visitedArgs = args.map((a) => ts.visitNode(a, visit) as ts.Expression);
         const visitedObj = ts.visitNode(obj, visit) as ts.Expression;
@@ -121,15 +134,26 @@ function lookupMethodInHierarchy(
   mappings: MappingJson,
   type: ts.Type,
   descriptor: string,
+  methodName: string,
+  argDescriptors: string[],
   checker: ts.TypeChecker
 ): string | undefined {
   const fqn = getClassFqn(type, checker);
   if (fqn) {
     const found = lookupMethod(mappings, fqn, descriptor);
     if (found) return found;
+    const fuzzyFound = lookupMethodByNameAndArgs(mappings, fqn, methodName, argDescriptors);
+    if (fuzzyFound) return fuzzyFound;
   }
   for (const base of getBaseTypes(type)) {
-    const found = lookupMethodInHierarchy(mappings, base, descriptor, checker);
+    const found = lookupMethodInHierarchy(
+      mappings,
+      base,
+      descriptor,
+      methodName,
+      argDescriptors,
+      checker
+    );
     if (found) return found;
   }
   return undefined;

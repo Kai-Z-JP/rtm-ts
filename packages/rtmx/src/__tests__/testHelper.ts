@@ -12,6 +12,8 @@ declare module "net.minecraft.entity" {
     posY: number;
     posZ: number;
     getDistance(x: number, y: number, z: number): number;
+    getEntityId(): number;
+    setEntityId(id: number): void;
     setDead(): void;
   }
 
@@ -47,6 +49,8 @@ export const FIXTURE_MAPPINGS = {
       },
       methods: {
         "getDistance(DDD)D": { srg: "func_70011_f" },
+        "getEntityId()I": { srg: "func_145782_y" },
+        "setEntityId(I)V": { srg: "func_145769_d" },
         "setDead()V": { srg: "func_70106_y" },
       },
     },

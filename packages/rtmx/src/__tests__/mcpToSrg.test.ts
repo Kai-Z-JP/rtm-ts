@@ -35,6 +35,28 @@ const d = e.getDistance(0, 64, 0);`,
     expect(js).not.toContain("e.getDistance");
   });
 
+  it("number 型では戻り値の int/double を区別できない method も引数一致で変換される", () => {
+    const { js } = transform(
+      `import { Entity } from "net.minecraft.entity";
+const e: Entity = renderer as any;
+const id = e.getEntityId();`,
+      makeTransformers
+    );
+    expect(js).toContain("e.func_145782_y()");
+    expect(js).not.toContain("e.getEntityId");
+  });
+
+  it("number 型では引数の int/double を区別できない method も一意なら変換される", () => {
+    const { js } = transform(
+      `import { Entity } from "net.minecraft.entity";
+const e: Entity = renderer as any;
+e.setEntityId(123);`,
+      makeTransformers
+    );
+    expect(js).toContain("e.func_145769_d(123)");
+    expect(js).not.toContain("e.setEntityId");
+  });
+
   it("generic base class を挟んだ継承元の method/field も変換される", () => {
     const { js } = transform(
       `import { Vehicle } from "net.minecraft.entity";

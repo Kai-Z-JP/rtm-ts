@@ -45,6 +45,57 @@ export function lookupMethod(
   return mappings.classes[classFqn]?.methods[methodKey]?.srg;
 }
 
+export function lookupMethodByNameAndArgs(
+  mappings: MappingJson,
+  classFqn: string,
+  methodName: string,
+  argDescriptors: string[]
+): string | undefined {
+  const methods = mappings.classes[classFqn]?.methods;
+  if (!methods) return undefined;
+
+  const matches = Object.entries(methods).filter(([key]) => {
+    const parsed = parseMethodKey(key);
+    return (
+      parsed?.name === methodName &&
+      parsed.args.length === argDescriptors.length &&
+      parsed.args.every((actual, i) => isCompatibleDescriptor(argDescriptors[i], actual))
+    );
+  });
+  return matches.length === 1 ? matches[0][1].srg : undefined;
+}
+
+function parseMethodKey(methodKey: string): { name: string; args: string[] } | undefined {
+  const match = /^(.+)\((.*)\).+$/.exec(methodKey);
+  if (!match) return undefined;
+  return { name: match[1], args: parseDescriptorList(match[2]) };
+}
+
+function parseDescriptorList(descriptors: string): string[] {
+  const result: string[] = [];
+  for (let i = 0; i < descriptors.length; ) {
+    const start = i;
+    while (descriptors[i] === "[") i++;
+    if (descriptors[i] === "L") {
+      const end = descriptors.indexOf(";", i);
+      if (end < 0) return result;
+      result.push(descriptors.slice(start, end + 1));
+      i = end + 1;
+    } else {
+      result.push(descriptors.slice(start, i + 1));
+      i++;
+    }
+  }
+  return result;
+}
+
+function isCompatibleDescriptor(expected: string, actual: string): boolean {
+  if (expected === actual) return true;
+  return expected === "D" && NUMERIC_PRIMITIVE_DESCRIPTORS.has(actual);
+}
+
+const NUMERIC_PRIMITIVE_DESCRIPTORS = new Set(["B", "S", "I", "J", "F", "D"]);
+
 /** TypeScript の型から Java descriptor 文字を生成 (MVP 簡易版) */
 export function typeToDescriptor(typeName: string): string {
   // 数値リテラル型 (0, 64, 3.14 など) → number
