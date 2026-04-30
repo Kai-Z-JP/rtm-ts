@@ -24,6 +24,12 @@ declare module "net.minecraft.entity" {
   }
 }
 
+declare module "net.minecraft.block" {
+  export class Block {
+    static getIdFromBlock(block: Block): number;
+  }
+}
+
 declare module "org.lwjgl.opengl" {
   export class GL11 {
     static GL_LIGHTING: number;
@@ -52,6 +58,13 @@ export const FIXTURE_MAPPINGS = {
         "getEntityId()I": { srg: "func_145782_y" },
         "setEntityId(I)V": { srg: "func_145769_d" },
         "setDead()V": { srg: "func_70106_y" },
+      },
+    },
+    "net.minecraft.block.Block": {
+      srg: "net.minecraft.block.Block",
+      fields: {},
+      methods: {
+        "getIdFromBlock(Lnet/minecraft/block/Block;)I": { srg: "func_149682_b" },
       },
     },
   },

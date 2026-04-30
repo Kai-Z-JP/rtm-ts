@@ -83,6 +83,17 @@ GL11.glDisable(GL11.GL_LIGHTING);`,
     expect(js).toContain("GL11.GL_LIGHTING");
   });
 
+  it("Block.getIdFromBlock の static method も SRG 変換される", () => {
+    const { js } = transform(
+      `import { Block } from "net.minecraft.block";
+const block: Block = renderer as any;
+const id = Block.getIdFromBlock(block);`,
+      makeTransformers
+    );
+    expect(js).toContain("Block.func_149682_b(block)");
+    expect(js).not.toContain("Block.getIdFromBlock");
+  });
+
   it("any 型のオブジェクトは SRG 変換しない (RTM002)", () => {
     const { js, diagnostics } = transform(
       `const e: any = renderer;

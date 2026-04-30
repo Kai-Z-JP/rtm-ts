@@ -69,12 +69,12 @@ export function createMcpToSrgTransformer(
         const args = node.arguments;
         const argTypes = args.map((a) => {
           const t = checker.getTypeAtLocation(a);
-          return typeToDescriptor(checker.typeToString(t));
+          return typeToDescriptorFromType(t, checker);
         });
         const retType = checker.getReturnTypeOfSignature(
           checker.getResolvedSignature(node) ?? getFirstSignature(objType, methodName, checker)!
         );
-        const retDesc = retType ? typeToDescriptor(checker.typeToString(retType)) : "V";
+        const retDesc = retType ? typeToDescriptorFromType(retType, checker) : "V";
 
         const descriptor = `${methodName}(${argTypes.join("")})${retDesc}`;
         const srgMethod = lookupMethodInHierarchy(
@@ -177,6 +177,10 @@ function isAnyOrUnknown(type: ts.Type): boolean {
 
 function getClassFqn(type: ts.Type, checker: ts.TypeChecker): string | undefined {
   if (isAnyOrUnknown(type)) return undefined;
+  const constructSignature = type.getConstructSignatures()[0];
+  if (constructSignature) {
+    return getClassFqn(constructSignature.getReturnType(), checker);
+  }
   const sym = type.getSymbol();
   if (!sym) return undefined;
   const tsName = checker
@@ -184,6 +188,20 @@ function getClassFqn(type: ts.Type, checker: ts.TypeChecker): string | undefined
     .replace(/"/g, "")
     .replace(/^module:/, "");
   return tsName;
+}
+
+function typeToDescriptorFromType(type: ts.Type, checker: ts.TypeChecker): string {
+  if (isAnyOrUnknown(type)) return typeToDescriptor(checker.typeToString(type));
+
+  if (type.flags & ts.TypeFlags.NumberLike) return "D";
+  if (type.flags & ts.TypeFlags.BooleanLike) return "Z";
+  if (type.flags & ts.TypeFlags.StringLike) return "Ljava/lang/String;";
+  if (type.flags & ts.TypeFlags.Void) return "V";
+
+  const fqn = getClassFqn(type, checker);
+  if (fqn) return `L${fqn.replace(/\./g, "/")};`;
+
+  return typeToDescriptor(checker.typeToString(type));
 }
 
 function getFirstSignature(
