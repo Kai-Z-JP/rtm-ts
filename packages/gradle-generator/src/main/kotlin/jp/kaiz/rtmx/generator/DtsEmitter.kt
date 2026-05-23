@@ -66,7 +66,11 @@ interface JavaCharArray extends JavaArrayLike<string> {}
                 "\n"
         )
 
-        val byPackage = classes.groupBy { it.fqn.substringBeforeLast('.') }
+        val topLevel = classes.filter { it.enclosingFqn == null }
+        val innerByOuter = classes.filter { it.enclosingFqn != null }
+            .groupBy { it.enclosingFqn!! }
+
+        val byPackage = topLevel.groupBy { it.fqn.substringBeforeLast('.') }
         val byFqn = classes.associateBy { it.fqn }
 
         for ((pkg, pkgClasses) in byPackage) {
@@ -78,7 +82,7 @@ interface JavaCharArray extends JavaArrayLike<string> {}
             // Namespace block — holds actual class declarations with real extends chains
             sb.appendLine("declare namespace $ns {")
             for (cls in pkgClasses) {
-                emitNsClass(cls, sb, byFqn)
+                emitNsClass(cls, sb, byFqn, innerByOuter)
             }
             sb.appendLine("}")
             sb.appendLine()
@@ -95,8 +99,18 @@ interface JavaCharArray extends JavaArrayLike<string> {}
         }
     }
 
-    private fun emitNsClass(cls: JavaClass, sb: StringBuilder, byFqn: Map<String, JavaClass>) {
-        val simpleName = cls.fqn.substringAfterLast('.')
+    private fun emitNsClass(
+        cls: JavaClass,
+        sb: StringBuilder,
+        byFqn: Map<String, JavaClass>,
+        innerByOuter: Map<String, List<JavaClass>> = emptyMap(),
+        indent: String = "  "
+    ) {
+        val inner = indent + "  "
+        val simpleName = if (cls.enclosingFqn != null)
+            cls.fqn.substringAfterLast('$')
+        else
+            cls.fqn.substringAfterLast('.')
 
         val typeParamsStr = cls.typeParams
             .takeIf { it.isNotEmpty() }
@@ -111,28 +125,28 @@ interface JavaCharArray extends JavaArrayLike<string> {}
                 .takeIf { it.isNotEmpty() }
                 ?.joinToString(", ", " extends ") { typeToTs(it) } ?: ""
 
-            sb.appendLine("  interface $simpleName$typeParamsStr$extendsClause {")
+            sb.appendLine("${indent}interface $simpleName$typeParamsStr$extendsClause {")
             for (f in cls.fields.filterNot { it.isStatic }) {
-                sb.appendLine("    ${f.name}: ${typeToTs(f.javaType)};")
+                sb.appendLine("${inner}${f.name}: ${typeToTs(f.javaType)};")
             }
             for (m in cls.methods.filterNot { it.isStatic }) {
                 val params = buildParams(m.paramTypes, m.isVarArgs)
-                sb.appendLine("    ${m.name}($params): ${typeToTs(m.returnType)};")
+                sb.appendLine("${inner}${m.name}($params): ${typeToTs(m.returnType)};")
             }
-            sb.appendLine("  }")
+            sb.appendLine("${indent}}")
 
             val staticFields = cls.fields.filter { it.isStatic }
             val staticMethods = cls.methods.filter { it.isStatic }
             if (staticFields.isNotEmpty() || staticMethods.isNotEmpty()) {
-                sb.appendLine("  namespace $simpleName {")
+                sb.appendLine("${indent}namespace $simpleName {")
                 for (f in staticFields) {
-                    sb.appendLine("    const ${f.name}: ${typeToTs(f.javaType)};")
+                    sb.appendLine("${inner}const ${f.name}: ${typeToTs(f.javaType)};")
                 }
                 for (m in staticMethods) {
                     val params = buildParams(m.paramTypes, m.isVarArgs)
-                    sb.appendLine("    function ${m.name}($params): ${typeToTs(m.returnType)};")
+                    sb.appendLine("${inner}function ${m.name}($params): ${typeToTs(m.returnType)};")
                 }
-                sb.appendLine("  }")
+                sb.appendLine("${indent}}")
             }
             return
         }
@@ -143,23 +157,23 @@ interface JavaCharArray extends JavaArrayLike<string> {}
             .takeIf { it.isNotEmpty() }
             ?.joinToString(", ", " implements ") { typeToTs(it) } ?: ""
 
-        sb.appendLine("  ${abstractModifier}class $simpleName$typeParamsStr$extendsClause$implementsClause {")
+        sb.appendLine("${indent}${abstractModifier}class $simpleName$typeParamsStr$extendsClause$implementsClause {")
         val emittedInstanceMethods = mutableSetOf<String>()
 
         for (ctor in cls.constructors) {
             val params = buildParams(ctor.paramTypes, ctor.isVarArgs)
-            sb.appendLine("    constructor($params);")
+            sb.appendLine("${inner}constructor($params);")
         }
-        sb.appendLine("    static readonly class: java.lang.Class<$simpleName>;")
+        sb.appendLine("${inner}static readonly class: java.lang.Class<$simpleName>;")
         for (f in cls.fields) {
             val static = if (f.isStatic) "static " else ""
-            sb.appendLine("    ${static}${f.name}: ${typeToTs(f.javaType)};")
+            sb.appendLine("${inner}${static}${f.name}: ${typeToTs(f.javaType)};")
         }
         for (m in cls.methods) {
             val static = if (m.isStatic) "static " else ""
             val override = if (!m.isStatic && overridesSuperclassMethod(cls, m, byFqn)) "override " else ""
             val params = buildParams(m.paramTypes, m.isVarArgs)
-            sb.appendLine("    ${static}${override}${m.name}($params): ${typeToTs(m.returnType)};")
+            sb.appendLine("${inner}${static}${override}${m.name}($params): ${typeToTs(m.returnType)};")
             if (!m.isStatic) emittedInstanceMethods.add(methodKey(m))
         }
 
@@ -168,13 +182,23 @@ interface JavaCharArray extends JavaArrayLike<string> {}
                 for (m in iface.methods.filterNot { it.isStatic }) {
                     if (emittedInstanceMethods.add(methodKey(m))) {
                         val params = buildParams(m.paramTypes, m.isVarArgs)
-                        sb.appendLine("    abstract ${m.name}($params): ${typeToTs(m.returnType)};")
+                        sb.appendLine("${inner}abstract ${m.name}($params): ${typeToTs(m.returnType)};")
                     }
                 }
             }
         }
 
-        sb.appendLine("  }")
+        sb.appendLine("${indent}}")
+
+        // Emit inner classes as a namespace merge
+        val innerClasses = innerByOuter[cls.fqn]
+        if (!innerClasses.isNullOrEmpty()) {
+            sb.appendLine("${indent}namespace $simpleName {")
+            for (innerCls in innerClasses) {
+                emitNsClass(innerCls, sb, byFqn, emptyMap(), inner)
+            }
+            sb.appendLine("${indent}}")
+        }
     }
 
     private fun fqnToNsRef(fqn: String): String {
@@ -294,7 +318,13 @@ interface JavaCharArray extends JavaArrayLike<string> {}
             java.lang.Object::class.java -> "any"
             else -> {
                 val fqn = cls.name
-                if (fqn.contains('$')) return "any"
+                if (fqn.contains('$')) {
+                    // e.g. jp.ngt.rtm.electric.Connection$ConnectionType
+                    // → jp.ngt.rtm.electric.Connection.ConnectionType
+                    val outerFqn = fqn.substringBefore('$')
+                    val innerName = fqn.substringAfter('$')
+                    return "${fqnToNsRef(outerFqn)}.$innerName"
+                }
                 fqnToNsRef(fqn)
             }
         }

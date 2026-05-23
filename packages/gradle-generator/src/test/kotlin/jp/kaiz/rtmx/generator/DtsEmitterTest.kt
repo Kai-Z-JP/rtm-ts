@@ -315,4 +315,42 @@ class DtsEmitterTest {
         assertTrue(content.contains("getSpeed(): number;"), "通常 method は出力されること")
         assertFalse(content.contains("override getSpeed"), "override でない method には modifier を付けないこと")
     }
+
+    @Test
+    fun `内部 Enum は namespace merge として生成される`() {
+        // Connection$ConnectionType に相当する内部 Enum
+        val innerEnumClass = JavaClass(
+            fqn = "jp.ngt.rtm.electric.Connection\$ConnectionType",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = listOf(
+                JavaField("WIRE", java.lang.Object::class.java, isStatic = true),
+            ),
+            methods = emptyList(),
+            enclosingFqn = "jp.ngt.rtm.electric.Connection"
+        )
+
+        // Connection 本体
+        val connectionClass = JavaClass(
+            fqn = "jp.ngt.rtm.electric.Connection",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = listOf(
+                JavaField("type", java.lang.Object::class.java, isStatic = false),
+            ),
+            methods = emptyList(),
+            enclosingFqn = null
+        )
+
+        DtsEmitter.emit(listOf(connectionClass, innerEnumClass), tempDir)
+        val content = tempDir.resolve("jp_ngt_rtm_electric.d.ts").readText()
+
+        assertTrue(content.contains("namespace Connection {"), "Connection の namespace merge が出力されること")
+        assertTrue(content.contains("class ConnectionType"), "ConnectionType class が出力されること")
+        assertFalse(content.contains("Connection\$ConnectionType"), "バイナリ名の \$ が出力されないこと")
+    }
 }

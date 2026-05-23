@@ -27,7 +27,8 @@ data class JavaClass(
     val fields: List<JavaField>,
     val methods: List<JavaMethod>,
     val isInterface: Boolean = false,
-    val isAbstract: Boolean = false
+val isAbstract: Boolean = false,
+    val enclosingFqn: String? = null
 )
 
 object ClasspathScanner {
@@ -42,7 +43,7 @@ object ClasspathScanner {
         for (file in files) {
             when {
                 file.isDirectory -> file.walkTopDown()
-                    .filter { it.name.endsWith(".class") && !it.name.contains('$') }
+                    .filter { it.name.endsWith(".class") && it.name.count { c -> c == '$' } <= 1 }
                     .forEach { f ->
                         val fqn = f.relativeTo(file).path
                             .removeSuffix(".class").replace(File.separatorChar, '.')
@@ -52,7 +53,7 @@ object ClasspathScanner {
                 file.name.endsWith(".jar") -> JarFile(file).use { jar ->
                     for (entry in jar.entries()) {
                         if (!entry.name.endsWith(".class")) continue
-                        if (entry.name.contains('$')) continue
+                        if (entry.name.count { it == '$' } > 1) continue
                         val fqn = entry.name.removeSuffix(".class").replace('/', '.')
                         if (packagePrefixes.any { fqn.startsWith(it) }) classNames.add(fqn)
                     }
@@ -74,6 +75,11 @@ object ClasspathScanner {
             try {
                 val cls = classLoader.loadClass(fqn)
                 if (!Modifier.isPublic(cls.modifiers)) continue
+                // inner class: only include named member classes one level deep
+                if (cls.name.contains('$')) {
+                    if (!cls.isMemberClass) continue
+                    if (cls.enclosingClass?.name?.contains('$') == true) continue
+                }
                 results.add(toJavaClass(cls, packagePrefixes, srgToMcp))
             } catch (e: Throwable) {
                 skipped.add("$fqn: ${e::class.simpleName}: ${e.message?.substringBefore('\n')}")
@@ -148,6 +154,8 @@ object ClasspathScanner {
                 }.getOrNull()
             }
 
+        val enclosingFqn = if (cls.isMemberClass) cls.enclosingClass?.name else null
+
         return JavaClass(
             cls.name,
             typeParams,
@@ -157,7 +165,8 @@ object ClasspathScanner {
             fields,
             methods,
             cls.isInterface,
-            Modifier.isAbstract(cls.modifiers)
+            Modifier.isAbstract(cls.modifiers),
+            enclosingFqn
         )
     }
 
