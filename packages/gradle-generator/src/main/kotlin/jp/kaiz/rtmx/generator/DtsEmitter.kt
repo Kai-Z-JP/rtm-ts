@@ -150,6 +150,7 @@ interface JavaCharArray extends JavaArrayLike<string> {}
             val params = buildParams(ctor.paramTypes, ctor.isVarArgs)
             sb.appendLine("    constructor($params);")
         }
+        sb.appendLine("    static readonly class: java.lang.Class<$simpleName>;")
         for (f in cls.fields) {
             val static = if (f.isStatic) "static " else ""
             sb.appendLine("    ${static}${f.name}: ${typeToTs(f.javaType)};")
