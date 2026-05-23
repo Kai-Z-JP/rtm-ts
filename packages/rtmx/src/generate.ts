@@ -20,7 +20,7 @@ export function generate(scan: ScanConfig): void {
   const projectDir = getOrCreateGradleProject(scan);
 
   const pathsFile = path.join(projectDir, "build", "rtm-paths.json");
-  const needsRun = !fs.existsSync(pathsFile) || isConfigNewer(scan, pathsFile);
+  const needsRun = !fs.existsSync(pathsFile) || isConfigNewer(scan, pathsFile) || isPathsStale(pathsFile);
 
   if (needsRun) {
     console.log("[rtmx] Running Gradle to prepare Minecraft JARs...");
@@ -177,6 +177,21 @@ function isConfigNewer(scan: ScanConfig, pathsFile: string): boolean {
     const configMtime = Date.now();
     void configMtime;
     void pathsMtime;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function isPathsStale(pathsFile: string): boolean {
+  try {
+    const rtmPaths: RtmPaths = JSON.parse(fs.readFileSync(pathsFile, "utf-8"));
+    const allFiles = [rtmPaths.deobfJar, ...rtmPaths.compileClasspath];
+    const missing = allFiles.filter((p) => !fs.existsSync(p));
+    if (missing.length > 0) {
+      console.log(`[rtmx] Cached JAR paths are stale (${missing.length} missing), re-running Gradle...`);
+      return true;
+    }
     return false;
   } catch {
     return true;
