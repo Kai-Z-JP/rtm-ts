@@ -21,6 +21,7 @@ export function compile(config: RtmxConfig): boolean {
   const compilerOptions: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES5,
     lib: ["lib.es5.d.ts"],
+    downlevelIteration: true,
     strict: true,
     noEmitOnError: true,
     skipLibCheck: true,

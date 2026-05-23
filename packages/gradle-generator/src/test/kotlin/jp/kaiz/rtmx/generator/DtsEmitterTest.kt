@@ -42,8 +42,8 @@ class DtsEmitterTest {
     @Test
     fun `Entity から d_ts が生成される`() {
         DtsEmitter.emit(listOf(entityClass), tempDir)
-        val files = tempDir.listFiles()!!
-        assertEquals(1, files.size, "1 ファイル生成されること")
+        val files = tempDir.listFiles()!!.filter { it.name != "rtmx.d.ts" }
+        assertEquals(1, files.size, "package ごとの d.ts が 1 ファイル生成されること")
 
         val content = files[0].readText()
         assertTrue(content.contains("declare namespace net.minecraft.entity"), "namespace 宣言")
@@ -54,7 +54,7 @@ class DtsEmitterTest {
     @Test
     fun `instance field は非 static として生成される`() {
         DtsEmitter.emit(listOf(entityClass), tempDir)
-        val content = tempDir.listFiles()!![0].readText()
+        val content = tempDir.resolve("net_minecraft_entity.d.ts").readText()
         assertTrue(content.contains("posX: number"), "posX フィールド")
         assertFalse(content.contains("static posX"), "posX は static でないこと")
     }
@@ -62,14 +62,14 @@ class DtsEmitterTest {
     @Test
     fun `static field は static として生成される`() {
         DtsEmitter.emit(listOf(entityClass), tempDir)
-        val content = tempDir.listFiles()!![0].readText()
+        val content = tempDir.resolve("net_minecraft_entity.d.ts").readText()
         assertTrue(content.contains("static MAX_ENTITY_COUNT: number"), "static フィールド")
     }
 
     @Test
     fun `static method は static として生成される`() {
         DtsEmitter.emit(listOf(entityClass), tempDir)
-        val content = tempDir.listFiles()!![0].readText()
+        val content = tempDir.resolve("net_minecraft_entity.d.ts").readText()
         assertTrue(content.contains("static getEntityClass"), "static メソッド")
     }
 
@@ -87,7 +87,7 @@ class DtsEmitterTest {
         val filtered = listOf(entityClass, other)
             .filter { it.fqn.startsWith("net.minecraft") }
         DtsEmitter.emit(filtered, tempDir)
-        val files = tempDir.listFiles()!!
+        val files = tempDir.listFiles()!!.filter { it.name != "rtmx.d.ts" }
         assertTrue(files.all { it.readText().contains("net.minecraft") })
         assertFalse(files.any { it.readText().contains("com.example") })
     }
@@ -112,8 +112,71 @@ class DtsEmitterTest {
             )
         )
         DtsEmitter.emit(listOf(listClass), tempDir)
-        val content = tempDir.listFiles()!![0].readText()
+        val content = tempDir.resolve("java_util.d.ts").readText()
         assertTrue(content.contains("class ArrayList<E"), "型パラメータ E が出力されること")
+    }
+
+    @Test
+    fun `Java 配列は専用の Java 配列型として出力される`() {
+        val arrayHolderClass = JavaClass(
+            fqn = "com.example.ArrayHolder",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = listOf(
+                JavaField("ids", IntArray::class.java, isStatic = false),
+                JavaField("names", Array<String>::class.java, isStatic = false),
+            ),
+            methods = listOf(
+                JavaMethod(
+                    name = "getMatrix",
+                    paramTypes = emptyList(),
+                    returnType = Array<IntArray>::class.java,
+                    isStatic = false,
+                    isVarArgs = false
+                )
+            )
+        )
+
+        DtsEmitter.emit(listOf(arrayHolderClass), tempDir)
+        val helperContent = tempDir.resolve("rtmx.d.ts").readText()
+        val content = tempDir.resolve("com_example.d.ts").readText()
+
+        assertTrue(helperContent.contains("interface JavaIntArray extends JavaArrayLike<number> {}"), "JavaIntArray が宣言されること")
+        assertFalse(content.contains("declare namespace rtmx"), "各 package の d.ts には rtmx namespace を重複出力しないこと")
+        assertTrue(content.contains("ids: JavaIntArray;"), "int[] は JavaIntArray として出力されること")
+        assertTrue(content.contains("names: JavaObjectArray<string>;"), "String[] は JavaObjectArray<string> として出力されること")
+        assertTrue(
+            content.contains("getMatrix(): JavaObjectArray<JavaIntArray>;"),
+            "int[][] は JavaObjectArray<JavaIntArray> として出力されること"
+        )
+    }
+
+    @Test
+    fun `Java varargs は呼び出し用の rest parameter として出力される`() {
+        val logClass = JavaClass(
+            fqn = "cpw.mods.fml.common.FMLLog",
+            typeParams = emptyList(),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = listOf(
+                JavaMethod(
+                    name = "info",
+                    paramTypes = listOf(String::class.java, Array<Any>::class.java),
+                    returnType = java.lang.Void.TYPE,
+                    isStatic = true,
+                    isVarArgs = true
+                )
+            )
+        )
+
+        DtsEmitter.emit(listOf(logClass), tempDir)
+        val content = tempDir.resolve("cpw_mods_fml_common.d.ts").readText()
+
+        assertTrue(content.contains("static info(p0: string, ...p1: any[]): void;"), "varargs は TS rest parameter として出力されること")
     }
 
     @Test
@@ -138,7 +201,7 @@ class DtsEmitterTest {
         )
 
         DtsEmitter.emit(listOf(senderInterface), tempDir)
-        val content = tempDir.listFiles()!![0].readText()
+        val content = tempDir.resolve("net_minecraft_command.d.ts").readText()
         assertTrue(content.contains("interface ICommandSender"), "TS interface として出力されること")
         assertFalse(content.contains("class ICommandSender"), "Java interface を class として出力しないこと")
     }
@@ -198,7 +261,7 @@ class DtsEmitterTest {
         )
 
         DtsEmitter.emit(listOf(abstractPlayerClass), tempDir)
-        val content = tempDir.listFiles()!![0].readText()
+        val content = tempDir.resolve("net_minecraft_entity_player.d.ts").readText()
         assertTrue(content.contains("abstract class EntityPlayer {"), "abstract class として出力されること")
     }
 
