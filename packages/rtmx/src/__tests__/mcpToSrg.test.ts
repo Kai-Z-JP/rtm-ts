@@ -137,7 +137,42 @@ const d = e?.getDistance(0, 64, 0);`,
       makeTransformers
     );
     // ES5 target が ?. を三項演算子に展開するが SRG 名は変換されること
-    expect(js).toContain("func_70011_f");
-    expect(js).not.toContain("getDistance");
+    expect(js).toContain("func_70011_f(");
+    expect(js).not.toContain("getDistance(");
+  });
+
+  it("optional chain e?.posX (Entity | null 型) が field_70165_t に変換される", () => {
+    const { js } = transform(
+      `import { Entity } from "net.minecraft.entity";
+const e: Entity | null = renderer as any;
+const x = e?.posX;`,
+      makeTransformers
+    );
+    expect(js).toContain("field_70165_t");
+    expect(js).not.toContain("posX");
+  });
+
+  it("optional chain e?.getDistance() (Entity | null 型) が func_70011_f に変換され .call を使わない", () => {
+    const { js } = transform(
+      `import { Entity } from "net.minecraft.entity";
+const e: Entity | null = renderer as any;
+const d = e?.getDistance(0, 64, 0);`,
+      makeTransformers
+    );
+    expect(js).toContain("func_70011_f(");
+    expect(js).not.toContain("getDistance(");
+    expect(js).not.toContain(".call(");
+  });
+
+  it("if 条件内の optional chain e?.getDistance() が func_70011_f に変換され .call を使わない", () => {
+    const { js } = transform(
+      `import { Entity } from "net.minecraft.entity";
+const e: Entity | null = renderer as any;
+if (e?.getDistance(0, 64, 0) > 10) {}`,
+      makeTransformers
+    );
+    expect(js).toContain("func_70011_f(");
+    expect(js).not.toContain("getDistance(");
+    expect(js).not.toContain(".call(");
   });
 });

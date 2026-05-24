@@ -95,7 +95,7 @@ export function createMcpToSrgTransformer(
           ? ts.factory.createPropertyAccessChain(visitedObj, propAccess.questionDotToken, targetMethod)
           : ts.factory.createPropertyAccessExpression(visitedObj, targetMethod);
 
-        if (node.questionDotToken) {
+        if (ts.isCallChain(node)) {
           return ts.factory.createCallChain(innerAccess, node.questionDotToken, node.typeArguments, visitedArgs);
         }
         return ts.factory.createCallExpression(innerAccess, node.typeArguments, visitedArgs);
@@ -174,10 +174,12 @@ function isAnyOrUnknown(type: ts.Type): boolean {
 function getClassFqn(type: ts.Type, checker: ts.TypeChecker): string | undefined {
   if (isAnyOrUnknown(type)) return undefined;
 
-  // T | undefined (optional chain の中間型) → undefined を除いた型で再試行
+  // T | null | undefined → null/undefined を除いた型で再試行
   if (type.isUnion()) {
-    const nonUndefined = type.types.filter((t) => !(t.flags & ts.TypeFlags.Undefined));
-    if (nonUndefined.length === 1) return getClassFqn(nonUndefined[0], checker);
+    const nonNullish = type.types.filter(
+      (t) => !(t.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Null))
+    );
+    if (nonNullish.length === 1) return getClassFqn(nonNullish[0], checker);
     return undefined;
   }
 
