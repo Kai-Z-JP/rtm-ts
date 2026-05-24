@@ -45,7 +45,10 @@ pnpm build  # TypeScript コンパイル
     "mappingsVersion": "12",
     "mods": [
       // rfg.deobf() に渡す Maven 依存関係
-      "com.github.Kai-Z-JP:KaizPatchX:v1.9.5"
+      "com.github.Kai-Z-JP:KaizPatchX:v1.9.5",
+      // CurseMaven も利用可能
+      "curse.maven:ngtlib-288989:3003745",
+      "curse.maven:realtrainmod-288988:3061973"
     ],
     "packages": [
       // スキャン対象の Java パッケージ

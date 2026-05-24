@@ -19,6 +19,11 @@ repositories {
         url = uri("https://jitpack.io")
         content { includeGroupByRegex("com\\.github\\..*") }
     }
+    maven {
+        name = "CurseMaven"
+        url = uri("https://cursemaven.com")
+        content { includeGroup("curse.maven") }
+    }
 }
 
 configurations.all {
