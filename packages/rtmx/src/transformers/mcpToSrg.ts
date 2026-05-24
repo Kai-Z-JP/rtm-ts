@@ -40,10 +40,11 @@ export function createMcpToSrgTransformer(
         // 継承チェーンを辿って SRG フィールド名を検索
         const srgField = lookupFieldInHierarchy(mappings, objType, propName, checker);
         if (srgField) {
-          return ts.factory.createPropertyAccessExpression(
-            ts.visitNode(obj, visit) as ts.Expression,
-            srgField
-          );
+          const visitedObj = ts.visitNode(obj, visit) as ts.Expression;
+          if (node.questionDotToken) {
+            return ts.factory.createPropertyAccessChain(visitedObj, node.questionDotToken, srgField);
+          }
+          return ts.factory.createPropertyAccessExpression(visitedObj, srgField);
         }
         // mapping 対象クラス(直接エントリあり)で field が見つからない → RTM003
         if (mappings.classes[fqn]) {
@@ -89,20 +90,15 @@ export function createMcpToSrgTransformer(
         const visitedArgs = args.map((a) => ts.visitNode(a, visit) as ts.Expression);
         const visitedObj = ts.visitNode(obj, visit) as ts.Expression;
 
-        if (srgMethod) {
-          return ts.factory.createCallExpression(
-            ts.factory.createPropertyAccessExpression(visitedObj, srgMethod),
-            undefined,
-            visitedArgs
-          );
-        }
+        const targetMethod = srgMethod ?? methodName;
+        const innerAccess = propAccess.questionDotToken
+          ? ts.factory.createPropertyAccessChain(visitedObj, propAccess.questionDotToken, targetMethod)
+          : ts.factory.createPropertyAccessExpression(visitedObj, targetMethod);
 
-        return ts.factory.updateCallExpression(
-          node,
-          ts.factory.createPropertyAccessExpression(visitedObj, methodName),
-          node.typeArguments,
-          visitedArgs
-        );
+        if (node.questionDotToken) {
+          return ts.factory.createCallChain(innerAccess, node.questionDotToken, node.typeArguments, visitedArgs);
+        }
+        return ts.factory.createCallExpression(innerAccess, node.typeArguments, visitedArgs);
       }
 
       return ts.visitEachChild(node, visit, context);
@@ -177,6 +173,14 @@ function isAnyOrUnknown(type: ts.Type): boolean {
 
 function getClassFqn(type: ts.Type, checker: ts.TypeChecker): string | undefined {
   if (isAnyOrUnknown(type)) return undefined;
+
+  // T | undefined (optional chain の中間型) → undefined を除いた型で再試行
+  if (type.isUnion()) {
+    const nonUndefined = type.types.filter((t) => !(t.flags & ts.TypeFlags.Undefined));
+    if (nonUndefined.length === 1) return getClassFqn(nonUndefined[0], checker);
+    return undefined;
+  }
+
   const constructSignature = type.getConstructSignatures()[0];
   if (constructSignature) {
     return getClassFqn(constructSignature.getReturnType(), checker);
