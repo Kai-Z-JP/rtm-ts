@@ -154,6 +154,36 @@ class DtsEmitterTest {
     }
 
     @Test
+    fun `NativeJava グローバル型が出力される`() {
+        DtsEmitter.emit(emptyList(), tempDir)
+        val helperContent = tempDir.resolve("rtmx.d.ts").readText()
+
+        assertTrue(helperContent.contains("interface JavaType<T = any>"), "JavaType が宣言されること")
+        assertTrue(helperContent.contains("interface NativeJava"), "NativeJava が宣言されること")
+        assertTrue(helperContent.contains("isType(value: any): value is JavaType<any>;"), "Java.isType が宣言されること")
+        assertTrue(helperContent.contains("synchronized<T extends (...args: any[]) => any>(func: T, lock: any): T;"), "Java.synchronized が宣言されること")
+        assertTrue(helperContent.contains("isJavaMethod(value: any): boolean;"), "Java.isJavaMethod が宣言されること")
+        assertTrue(helperContent.contains("isJavaFunction(value: any): boolean;"), "Java.isJavaFunction が宣言されること")
+        assertTrue(helperContent.contains("isJavaObject(value: any): boolean;"), "Java.isJavaObject が宣言されること")
+        assertTrue(helperContent.contains("isScriptObject(value: any): boolean;"), "Java.isScriptObject が宣言されること")
+        assertTrue(helperContent.contains("isScriptFunction(value: any): boolean;"), "Java.isScriptFunction が宣言されること")
+        assertTrue(helperContent.contains("type<T = any>(className: string): JavaType<T>;"), "Java.type が宣言されること")
+        assertTrue(helperContent.contains("typeName(value: any): string | undefined;"), "Java.typeName が宣言されること")
+        assertTrue(helperContent.contains("to(value: null, type?: string | JavaType<any>): null;"), "Java.to の省略可能な型引数が宣言されること")
+        assertTrue(helperContent.contains("to<T>(value: ArrayLike<T>): JavaObjectArray<T>;"), "Java.to の配列変換が宣言されること")
+        assertTrue(helperContent.contains("to(value: object): JavaObjectArray<any>;"), "Java.to のオブジェクト変換が宣言されること")
+        assertTrue(helperContent.contains("to<T, R = any>(value: ArrayLike<T>, type: string | JavaType<R>): R;"), "Java.to の型付き配列変換が宣言されること")
+        assertTrue(helperContent.contains("to<R = any>(value: object, type: string | JavaType<R>): R;"), "Java.to の型付きオブジェクト変換が宣言されること")
+        assertTrue(helperContent.contains("from(array: null): null;"), "Java.from の null overload が宣言されること")
+        assertTrue(helperContent.contains("from<T>(array: JavaArrayLike<T>): T[];"), "Java.from が宣言されること")
+        assertTrue(helperContent.contains("from<T = any>(array: any): T[];"), "Java.from の動的 overload が宣言されること")
+        assertTrue(helperContent.contains("extend<T = any>(type: JavaType<T>, ...typesOrImplementation: any[])"), "Java.extend が宣言されること")
+        assertTrue(helperContent.contains("super<T>(instance: T): T;"), "Java.super が宣言されること")
+        assertTrue(helperContent.contains("asJSONCompatible(value: any): any;"), "Java.asJSONCompatible が宣言されること")
+        assertTrue(helperContent.contains("declare const Java: NativeJava;"), "Java グローバルが宣言されること")
+    }
+
+    @Test
     fun `Java varargs は呼び出し用の rest parameter として出力される`() {
         val logClass = JavaClass(
             fqn = "cpw.mods.fml.common.FMLLog",

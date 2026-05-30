@@ -40,6 +40,37 @@ interface JavaLongArray extends JavaArrayLike<number> {}
 interface JavaFloatArray extends JavaArrayLike<number> {}
 interface JavaDoubleArray extends JavaArrayLike<number> {}
 interface JavaCharArray extends JavaArrayLike<string> {}
+
+interface JavaType<T = any> {
+  new (...args: any[]): T;
+  (...args: any[]): T;
+  [member: string]: any;
+}
+
+interface NativeJava {
+  isType(value: any): value is JavaType<any>;
+  synchronized<T extends (...args: any[]) => any>(func: T, lock: any): T;
+  isJavaMethod(value: any): boolean;
+  isJavaFunction(value: any): boolean;
+  isJavaObject(value: any): boolean;
+  isScriptObject(value: any): boolean;
+  isScriptFunction(value: any): boolean;
+  type<T = any>(className: string): JavaType<T>;
+  typeName(value: any): string | undefined;
+  to(value: null, type?: string | JavaType<any>): null;
+  to<T>(value: ArrayLike<T>): JavaObjectArray<T>;
+  to(value: object): JavaObjectArray<any>;
+  to<T, R = any>(value: ArrayLike<T>, type: string | JavaType<R>): R;
+  to<R = any>(value: object, type: string | JavaType<R>): R;
+  from(array: null): null;
+  from<T>(array: JavaArrayLike<T>): T[];
+  from<T = any>(array: any): T[];
+  extend<T = any>(type: JavaType<T>, ...typesOrImplementation: any[]): JavaType<T>;
+  super<T>(instance: T): T;
+  asJSONCompatible(value: any): any;
+}
+
+declare const Java: NativeJava;
 """
 
     // TSでは予約語をIdentifierとして使えないため、末尾にアンダースコアを付与して回避する
