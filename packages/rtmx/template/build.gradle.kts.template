@@ -10,6 +10,12 @@ java {
     }
 }
 
+minecraft {
+    mcVersion.set(providers.gradleProperty("minecraftVersion"))
+    mcpMappingChannel.set(providers.gradleProperty("channel"))
+    mcpMappingVersion.set(providers.gradleProperty("mappingsVersion"))
+}
+
 repositories {
     maven {
         name = "GTNH Maven"
