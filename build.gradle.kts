@@ -9,12 +9,12 @@ tasks.register<Exec>("pnpmInstall") {
 tasks.register<Exec>("buildRtmx") {
     dependsOn(":gradle-generator:installScannerJar")
     dependsOn("pnpmInstall")
-    commandLine("pnpm", "--filter", "rtmx", "build")
+    commandLine("pnpm", "--filter", "rtm-ts", "build")
 }
 
 tasks.register<Exec>("publishRtmx") {
     dependsOn("buildRtmx")
-    commandLine("pnpm", "--filter", "rtmx", "publish")
+    commandLine("pnpm", "--filter", "rtm-ts", "publish")
 }
 
 tasks.register<Exec>("generateTypings") {
