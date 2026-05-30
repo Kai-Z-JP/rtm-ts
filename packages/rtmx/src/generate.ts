@@ -94,7 +94,7 @@ function ensureGradleWrapper(projectDir: string): void {
 function runGradle(projectDir: string, task: string): void {
   const gradlew = process.platform === "win32" ? ".\\gradlew.bat" : "./gradlew";
 
-  const gradleJavaHome = process.env["npm_config_gradle_java_home"];
+  const gradleJavaHome = getGradleJavaHome();
   console.log(`[rtmx] Gradle Java Home: ${gradleJavaHome}`);
 
   const result = child_process.spawnSync(gradlew, [task, "--stacktrace"], {
@@ -112,12 +112,52 @@ function runGradle(projectDir: string, task: string): void {
 }
 
 function getJavaExecutable(): string {
-  const javaHome = process.env["npm_config_gradle_java_home"] || process.env["JAVA_HOME"];
+  const javaHome = getGradleJavaHome() || process.env["JAVA_HOME"];
+  console.log(`[rtmx] Using Java Home: ${javaHome}`);
   if (javaHome) {
     const executable = process.platform === "win32" ? "java.exe" : "java";
     return path.join(javaHome, "bin", executable);
   }
   return "java";
+}
+
+function getGradleJavaHome(): string | undefined {
+  return process.env["npm_config_gradle_java_home"] ?? readNpmrcValue("gradle-java-home");
+}
+
+function readNpmrcValue(key: string): string | undefined {
+  for (const npmrcPath of findNpmrcFiles(process.cwd())) {
+    const value = readNpmrcValueFromFile(npmrcPath, key);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function findNpmrcFiles(startDir: string): string[] {
+  const files: string[] = [];
+  let current = path.resolve(startDir);
+  while (true) {
+    files.push(path.join(current, ".npmrc"));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return files;
+}
+
+function readNpmrcValueFromFile(npmrcPath: string, key: string): string | undefined {
+  if (!fs.existsSync(npmrcPath)) return undefined;
+  const lines = fs.readFileSync(npmrcPath, "utf-8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(";")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 0) continue;
+    const name = trimmed.slice(0, eq).trim();
+    if (name !== key) continue;
+    return trimmed.slice(eq + 1).trim();
+  }
+  return undefined;
 }
 
 function runScanner(scan: ScanConfig, paths: RtmPaths): void {
