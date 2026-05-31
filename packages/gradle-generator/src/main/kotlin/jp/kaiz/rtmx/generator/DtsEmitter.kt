@@ -142,6 +142,7 @@ declare const Java: NativeJava;
             cls.fqn.substringAfterLast('$')
         else
             cls.fqn.substringAfterLast('.')
+        val methods = methodsForEmit(cls)
 
         val typeParamsStr = cls.typeParams
             .takeIf { it.isNotEmpty() }
@@ -160,14 +161,14 @@ declare const Java: NativeJava;
             for (f in cls.fields.filterNot { it.isStatic }) {
                 sb.appendLine("${inner}${f.name}: ${typeToTs(f.javaType)};")
             }
-            for (m in cls.methods.filterNot { it.isStatic }) {
+            for (m in methods.filterNot { it.isStatic }) {
                 val params = buildParams(m.paramTypes, m.isVarArgs)
                 sb.appendLine("${inner}${m.name}($params): ${typeToTs(m.returnType)};")
             }
             sb.appendLine("${indent}}")
 
             val staticFields = cls.fields.filter { it.isStatic }
-            val staticMethods = cls.methods.filter { it.isStatic }
+            val staticMethods = methods.filter { it.isStatic }
             if (staticFields.isNotEmpty() || staticMethods.isNotEmpty()) {
                 sb.appendLine("${indent}namespace $simpleName {")
                 for (f in staticFields) {
@@ -200,7 +201,7 @@ declare const Java: NativeJava;
             val static = if (f.isStatic) "static " else ""
             sb.appendLine("${inner}${static}${f.name}: ${typeToTs(f.javaType)};")
         }
-        for (m in cls.methods) {
+        for (m in methods) {
             val static = if (m.isStatic) "static " else ""
             val override = if (!m.isStatic && overridesSuperclassMethod(cls, m, byFqn)) "override " else ""
             val params = buildParams(m.paramTypes, m.isVarArgs)
@@ -210,7 +211,7 @@ declare const Java: NativeJava;
 
         if (cls.isAbstract) {
             for (iface in collectInterfaces(cls.superInterfaces, byFqn)) {
-                for (m in iface.methods.filterNot { it.isStatic }) {
+                for (m in methodsForEmit(iface).filterNot { it.isStatic }) {
                     if (emittedInstanceMethods.add(methodKey(m))) {
                         val params = buildParams(m.paramTypes, m.isVarArgs)
                         sb.appendLine("${inner}abstract ${m.name}($params): ${typeToTs(m.returnType)};")
@@ -278,11 +279,47 @@ declare const Java: NativeJava;
 
         fun visit(type: Type?): Boolean {
             val superClass = type?.let(::rawClassName)?.let(byFqn::get) ?: return false
-            if (superClass.methods.any { !it.isStatic && methodSignatureKey(it) == key }) return true
+            if (methodsForEmit(superClass).any { !it.isStatic && methodSignatureKey(it) == key }) return true
             return visit(superClass.superclass)
         }
 
         return visit(cls.superclass)
+    }
+
+    private fun methodsForEmit(cls: JavaClass): List<JavaMethod> {
+        val result = linkedMapOf<String, JavaMethod>()
+        for (method in cls.methods) {
+            val key = "${method.isStatic}:${methodSignatureKey(method)}"
+            val current = result[key]
+            if (current == null || isMoreSpecificReturn(method.returnType, current.returnType)) {
+                result[key] = method
+            }
+        }
+        return result.values.toList()
+    }
+
+    private fun isMoreSpecificReturn(candidate: Type, current: Type): Boolean {
+        val candidateClass = rawClass(candidate)
+        val currentClass = rawClass(current)
+        if (candidateClass != null && currentClass != null && candidateClass != currentClass) {
+            if (currentClass.isAssignableFrom(candidateClass)) return true
+            if (candidateClass.isAssignableFrom(currentClass)) return false
+        }
+        return returnTypeSpecificity(candidate) > returnTypeSpecificity(current)
+    }
+
+    private fun returnTypeSpecificity(type: Type): Int = when (type) {
+        is TypeVariable<*> -> 4
+        is ParameterizedType -> 3
+        is Class<*> -> if (type == java.lang.Object::class.java) 0 else 2
+        is WildcardType -> 1
+        else -> 1
+    }
+
+    private fun rawClass(type: Type): Class<*>? = when (type) {
+        is Class<*> -> type
+        is ParameterizedType -> type.rawType as? Class<*>
+        else -> null
     }
 
     private fun rawClassName(type: Type): String? = when (type) {

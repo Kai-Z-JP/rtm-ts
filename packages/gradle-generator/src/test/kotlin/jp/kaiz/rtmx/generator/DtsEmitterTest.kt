@@ -347,6 +347,46 @@ class DtsEmitterTest {
     }
 
     @Test
+    fun `戻り値だけが異なる bridge 相当 method は具体的な型を優先して一つだけ出力する`() {
+        val typeVariable = GenericResourceSet::class.java.typeParameters[0]
+        val textureSetClass = JavaClass(
+            fqn = "jp.ngt.rtm.modelpack.modelset.TextureSetBase",
+            typeParams = listOf(JavaTypeParam("T", listOf(TextureConfig::class.java))),
+            superclass = null,
+            superInterfaces = emptyList(),
+            constructors = emptyList(),
+            fields = emptyList(),
+            methods = listOf(
+                JavaMethod(
+                    name = "getConfig",
+                    paramTypes = emptyList(),
+                    returnType = ResourceConfig::class.java,
+                    isStatic = false,
+                    isVarArgs = false
+                ),
+                JavaMethod(
+                    name = "getConfig",
+                    paramTypes = emptyList(),
+                    returnType = typeVariable,
+                    isStatic = false,
+                    isVarArgs = false
+                )
+            ),
+            isAbstract = true
+        )
+
+        DtsEmitter.emit(listOf(textureSetClass), tempDir)
+        val content = tempDir.resolve("jp_ngt_rtm_modelpack_modelset.d.ts").readText()
+
+        assertFalse(
+            content.contains("getConfig(): jp.kaiz.rtmx.generator.ResourceConfig;"),
+            "bridge 相当の広い戻り値は出力しないこと"
+        )
+        assertTrue(content.contains("getConfig(): T;"), "具体的な generic 戻り値を出力すること")
+        assertEquals(1, Regex("getConfig\\(\\)").findAll(content).count(), "getConfig は一つだけ出力すること")
+    }
+
+    @Test
     fun `内部 Enum は namespace merge として生成される`() {
         // Connection$ConnectionType に相当する内部 Enum
         val innerEnumClass = JavaClass(
@@ -382,5 +422,11 @@ class DtsEmitterTest {
         assertTrue(content.contains("namespace Connection {"), "Connection の namespace merge が出力されること")
         assertTrue(content.contains("class ConnectionType"), "ConnectionType class が出力されること")
         assertFalse(content.contains("Connection\$ConnectionType"), "バイナリ名の \$ が出力されないこと")
+    }
+
+    open class ResourceConfig
+    open class TextureConfig : ResourceConfig()
+    open class GenericResourceSet<T : ResourceConfig> {
+        open fun getConfig(): T? = null
     }
 }

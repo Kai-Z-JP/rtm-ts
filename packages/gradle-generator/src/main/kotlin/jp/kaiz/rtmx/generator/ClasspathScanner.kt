@@ -140,7 +140,10 @@ object ClasspathScanner {
 
         val methods = cls.declaredMethods
             .filter { m ->
-                Modifier.isPublic(m.modifiers) && m.name !in OBJECT_METHODS
+                Modifier.isPublic(m.modifiers) &&
+                    !m.isBridge &&
+                    !m.isSynthetic &&
+                    m.name !in OBJECT_METHODS
             }
             .mapNotNull { m ->
                 runCatching {
