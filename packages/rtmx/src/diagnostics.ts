@@ -1,4 +1,5 @@
 import ts from "typescript";
+import type { CommonApiPolicy } from "./config.js";
 
 export const RTM_DIAGNOSTICS = {
   RTM001: (node: ts.Node): ts.Diagnostic => ({
@@ -29,6 +30,23 @@ export const RTM_DIAGNOSTICS = {
     category: ts.DiagnosticCategory.Warning,
     code: 1004,
     messageText: `RTM004: Nashorn incompatible syntax: ${detail}`,
+    file: node.getSourceFile(),
+    start: node.getStart(),
+    length: node.getWidth(),
+  }),
+  RTM005: (
+    node: ts.Node,
+    name: string,
+    targets: string[],
+    reason: "availability" | "mapping",
+    policy: CommonApiPolicy
+  ): ts.Diagnostic => ({
+    category: policy === "error" ? ts.DiagnosticCategory.Error : ts.DiagnosticCategory.Warning,
+    code: 1005,
+    messageText:
+      reason === "mapping"
+        ? `RTM005: API "${name}" has target-dependent SRG mappings and is used from common source. Move this operation into an @target compatibility module.`
+        : `RTM005: target-specific API "${name}" is used from common source (available targets: ${targets.join(", ")}). Move this operation into an @target compatibility module.`,
     file: node.getSourceFile(),
     start: node.getStart(),
     length: node.getWidth(),

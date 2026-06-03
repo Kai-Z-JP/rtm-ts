@@ -137,6 +137,7 @@ rtmx zip
 
 - [Renderer スクリプトの特別仕様](docs/renderer.md)
 - [ES5 JS → TypeScript 移行ガイド](docs/migration.md)
+- [Multi-target 構成](docs/multi-target.md)
 
 ## License
 

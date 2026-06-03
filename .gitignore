@@ -1,6 +1,9 @@
 # Node
 node_modules/
 
+# pnpm
+.pnpm-store/
+
 # Build outputs
 dist/
 build/
@@ -10,7 +13,8 @@ build/
 run/
 
 # rtmx generated
-sample/generated/
+generated/
+artifacts/
 
 # Built JARs (produced by installScannerJar)
 packages/rtmx/jars/

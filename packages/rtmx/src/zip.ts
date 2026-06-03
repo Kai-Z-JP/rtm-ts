@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
-import type { RtmxConfig } from "./config.js";
+import type { MultiTargetConfig, RtmxConfig } from "./config.js";
 
 // CRC-32 table (PKZIP / ISO 3309)
 const CRC_TABLE = (() => {
@@ -114,8 +114,10 @@ export function zip(config: RtmxConfig, projectRoot: string): void {
     process.exit(1);
   }
 
-  const fileEntries = [...collectFiles(srcDir, ""), ...collectFiles(outDir, "")].filter(
-    (e) => !e.zipPath.endsWith(".ts")
+  const fileEntries = uniqueByZipPath(
+    [...collectFiles(srcDir, ""), ...collectFiles(outDir, "")].filter(
+      (e) => !e.zipPath.endsWith(".ts")
+    )
   );
 
   const zipName = `${config.name}.zip`;
@@ -125,6 +127,34 @@ export function zip(config: RtmxConfig, projectRoot: string): void {
 
   const outPath = path.join(artifactsDir, zipName);
   const zipEntries = fileEntries.map(({ zipPath, absPath }) => ({
+    zipPath,
+    data: fs.readFileSync(absPath),
+  }));
+
+  fs.writeFileSync(outPath, buildZip(zipEntries));
+  console.log(`[rtmx] packed ${zipEntries.length} files → ${path.relative(projectRoot, outPath)}`);
+}
+
+function uniqueByZipPath<T extends { zipPath: string }>(entries: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const entry of entries) {
+    map.set(entry.zipPath, entry);
+  }
+  return [...map.values()];
+}
+
+export function zipMultiTarget(config: MultiTargetConfig, projectRoot: string): void {
+  if (!fs.existsSync(config.outDir)) {
+    console.error(`[rtmx] outDir not found: ${config.outDir} — run 'rtmx build' first`);
+    process.exit(1);
+  }
+
+  const zipName = `${config.name}.zip`;
+  const artifactsDir = path.join(projectRoot, "artifacts");
+  fs.mkdirSync(artifactsDir, { recursive: true });
+
+  const outPath = path.join(artifactsDir, zipName);
+  const zipEntries = collectFiles(config.outDir, "").map(({ zipPath, absPath }) => ({
     zipPath,
     data: fs.readFileSync(absPath),
   }));
