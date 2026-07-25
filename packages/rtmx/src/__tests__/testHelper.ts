@@ -11,6 +11,7 @@ declare module "net.minecraft.entity" {
     posX: number;
     posY: number;
     posZ: number;
+    getByName(name: string): Entity;
     getDistance(x: number, y: number, z: number): number;
     getEntityId(): number;
     setEntityId(id: number): void;
@@ -54,6 +55,9 @@ export const FIXTURE_MAPPINGS = {
         posY: { srg: "field_70163_p", desc: "D" },
       },
       methods: {
+        "getByName(Ljava/lang/String;)Lnet/minecraft/entity/Entity;": {
+          srg: "func_get_by_name",
+        },
         "getDistance(DDD)D": { srg: "func_70011_f" },
         "getEntityId()I": { srg: "func_145782_y" },
         "setEntityId(I)V": { srg: "func_145769_d" },

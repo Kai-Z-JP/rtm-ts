@@ -8,6 +8,7 @@ import { createJavaImportTransformer } from "./transformers/javaImportToPackages
 import { createMcpToSrgTransformer } from "./transformers/mcpToSrg.js";
 import { createNashornCompatTransformer } from "./transformers/nashornCompat.js";
 import { createRendererClassTransformer } from "./transformers/rendererClass.js";
+import { createUnicodeEscapeTransformer } from "./transformers/unicodeEscape.js";
 import { collectCommonApiDiagnostics } from "./commonApi.js";
 import { compatModuleKey, compatModuleVarName } from "./compatNames.js";
 
@@ -66,6 +67,7 @@ export function compile(config: RtmxConfig): boolean {
       createNashornCompatTransformer(rtmDiagnostics),
       createJavaImportTransformer(checker, rtmDiagnostics),
       createMcpToSrgTransformer(checker, mappings, rtmDiagnostics),
+      createUnicodeEscapeTransformer(),
     ],
   };
 

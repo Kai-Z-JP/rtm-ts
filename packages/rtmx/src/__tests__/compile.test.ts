@@ -7,6 +7,51 @@ import { compatModuleKey, compatModuleVarName } from "../compatNames.js";
 import { generateDispatchers } from "../multiTarget.js";
 
 describe("compile", () => {
+  it("通常文字列を Unicode escape にし、Unicode の相対 import は解決できる", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "rtmx-unicode-"));
+    try {
+      const srcDir = path.join(root, "src");
+      const outDir = path.join(root, "dist");
+      mkdirSync(srcDir, { recursive: true });
+
+      const mapping = path.join(root, "mcp-to-srg.json");
+      writeFileSync(mapping, JSON.stringify({ classes: {} }), "utf-8");
+      writeFileSync(
+        path.join(srcDir, "日本語.ts"),
+        'export function helper() { return "値"; }\n',
+        "utf-8"
+      );
+      writeFileSync(
+        path.join(srcDir, "main.ts"),
+        `import { helper } from "./日本語";
+var normal = "日本語😀";
+var template = \`日本語\`;
+var fromModule = helper();
+`,
+        "utf-8"
+      );
+
+      expect(
+        compile({
+          name: "test",
+          srcDir,
+          outDir,
+          typings: [],
+          mapping,
+        })
+      ).toBe(true);
+
+      const helperJs = readFileSync(path.join(outDir, "日本語.js"), "utf-8");
+      const mainJs = readFileSync(path.join(outDir, "main.js"), "utf-8");
+      expect(helperJs).toContain('return "\\u5024"');
+      expect(mainJs).toContain("//include <dist/日本語.js>");
+      expect(mainJs).toContain('var normal = "\\u65E5\\u672C\\u8A9E\\uD83D\\uDE00"');
+      expect(mainJs).toContain('var template = "\\u65E5\\u672C\\u8A9E"');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("export 宣言は CommonJS のエクスポートではなく、 Nashorn のグローバル変数として出力される", () => {
     const root = mkdtempSync(path.join(tmpdir(), "rtmx-compile-"));
     try {

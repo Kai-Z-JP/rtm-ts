@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import { createMcpToSrgTransformer } from "../transformers/mcpToSrg.js";
 import { createJavaImportTransformer } from "../transformers/javaImportToPackages.js";
+import { createUnicodeEscapeTransformer } from "../transformers/unicodeEscape.js";
 import { FIXTURE_MAPPINGS } from "./testHelper.js";
 import { transform } from "./testHelper.js";
 
@@ -9,6 +10,7 @@ const makeTransformers = (checker: ts.TypeChecker, diags: ts.Diagnostic[]) => ({
   before: [
     createJavaImportTransformer(checker, diags),
     createMcpToSrgTransformer(checker, FIXTURE_MAPPINGS, diags),
+    createUnicodeEscapeTransformer(),
   ],
 });
 
@@ -33,6 +35,17 @@ const d = e.getDistance(0, 64, 0);`,
     );
     expect(js).toContain("e.func_70011_f(0, 64, 0)");
     expect(js).not.toContain("e.getDistance");
+  });
+
+  it("Unicode 文字列引数の型を解決してから文字列を escape する", () => {
+    const { js } = transform(
+      `import { Entity } from "net.minecraft.entity";
+const e: Entity = renderer as any;
+const found = e.getByName("日本語");`,
+      makeTransformers
+    );
+    expect(js).toContain('e.func_get_by_name("\\u65E5\\u672C\\u8A9E")');
+    expect(js).not.toContain("e.getByName");
   });
 
   it("number 型では戻り値の int/double を区別できない method も引数一致で変換される", () => {
