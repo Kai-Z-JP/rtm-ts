@@ -239,9 +239,9 @@ dist/assets/minecraft/scripts/server_editor.js
 target ごとの出力には、compat 実装だけが入ります。
 
 ```text
-dist/assets/minecraft/__targets__/kaizpatch/scripts/lib/RTMApiCompat.compat.js
-dist/assets/minecraft/__targets__/mc1710/scripts/lib/RTMApiCompat.compat.js
-dist/assets/minecraft/__targets__/mc1122/scripts/lib/RTMApiCompat.compat.js
+dist/assets/minecraft/__targets__/kaizpatch/scripts/lib/RTMApiCompat.__rtmx_kaizpatch_<hash>.compat.js
+dist/assets/minecraft/__targets__/mc1710/scripts/lib/RTMApiCompat.__rtmx_mc1710_<hash>.compat.js
+dist/assets/minecraft/__targets__/mc1122/scripts/lib/RTMApiCompat.__rtmx_mc1122_<hash>.compat.js
 ```
 
 common 側には、target を選ぶ selector が生成されます。
@@ -255,9 +255,9 @@ selector は target 実装を include し、script の評価時に一度だけ�
 
 ```javascript
 var RTMX_COMPAT_TARGETS = RTMX_COMPAT_TARGETS || {};
-//include <__targets__/kaizpatch/scripts/lib/RTMApiCompat.compat.js>
-//include <__targets__/mc1710/scripts/lib/RTMApiCompat.compat.js>
-//include <__targets__/mc1122/scripts/lib/RTMApiCompat.compat.js>
+//include <__targets__/kaizpatch/scripts/lib/RTMApiCompat.__rtmx_kaizpatch_<hash>.compat.js>
+//include <__targets__/mc1710/scripts/lib/RTMApiCompat.__rtmx_mc1710_<hash>.compat.js>
+//include <__targets__/mc1122/scripts/lib/RTMApiCompat.__rtmx_mc1122_<hash>.compat.js>
 
 function RTMX_selectCompatTarget_scripts_lib_RTMApiCompat_182qpdt() {
   if (Packages.jp.ngt.rtm.RTMCore.VERSION.indexOf("KaizPatch") !== -1) {

@@ -3,7 +3,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { compile } from "../compile.js";
-import { compatModuleKey, compatModuleVarName } from "../compatNames.js";
+import { compatModuleKey, compatModuleVarName, targetCompatOutputPath } from "../compatNames.js";
 import { generateDispatchers } from "../multiTarget.js";
 
 describe("compile", () => {
@@ -196,13 +196,23 @@ function render(entity: any, pass: number, par3: number): void {
         path.join(targetDir, "assets/minecraft/scripts/lib/Compat.compat.ts"),
         `import { GL11 } from "org.lwjgl.opengl";
 import { commonHelper } from "@common/assets/minecraft/scripts/lib/Shared";
+import { targetHelper } from "./Other.compat";
 export function helper(): void {
   commonHelper();
+  targetHelper();
   GL11.glDisable(0);
 }
 `,
         "utf-8"
       );
+      writeFileSync(
+        path.join(targetDir, "assets/minecraft/scripts/lib/Other.compat.ts"),
+        "export function targetHelper(): void {}\n",
+        "utf-8"
+      );
+      const legacyCompatOutput = path.join(outDir, "scripts/lib/Compat.compat.js");
+      mkdirSync(path.dirname(legacyCompatOutput), { recursive: true });
+      writeFileSync(legacyCompatOutput, "legacy output\n", "utf-8");
 
       expect(
         compile({
@@ -219,7 +229,13 @@ export function helper(): void {
         })
       ).toBe(true);
 
-      const compatJs = readFileSync(path.join(outDir, "scripts/lib/Compat.compat.js"), "utf-8");
+      const compatOutputPath = targetCompatOutputPath("scripts/lib/Compat", "mc1122");
+      const compatJs = readFileSync(path.join(outDir, compatOutputPath), "utf-8");
+      const otherCompatOutputPath = targetCompatOutputPath("scripts/lib/Other", "mc1122");
+      expect(existsSync(legacyCompatOutput)).toBe(false);
+      expect(existsSync(path.join(outDir, otherCompatOutputPath))).toBe(true);
+      expect(compatJs).toContain(`//include <__targets__/mc1122/${otherCompatOutputPath}>`);
+      expect(compatJs).not.toContain("scripts/lib/Other.compat.js");
       expect(existsSync(path.join(outDir, "scripts/render_editor.js"))).toBe(false);
       expect(compatJs).not.toContain("var GL11 = Packages.org.lwjgl.opengl.GL11;");
       expect(compatJs).toContain("//include <scripts/lib/Shared.js>");
@@ -392,7 +408,7 @@ export function helper(): void {
           outDir,
           "assets/minecraft/__targets__",
           target,
-          "scripts/lib/Compat.compat.js"
+          targetCompatOutputPath("scripts/lib/Compat", target)
         );
         mkdirSync(path.dirname(targetCompat), { recursive: true });
         writeFileSync(
@@ -442,12 +458,23 @@ RTMX_COMPAT_TARGETS.${target}.${compatModuleKey("scripts/lib/Compat")} = { helpe
         "utf-8"
       );
       const compatKey = compatModuleKey("scripts/lib/Compat");
+      const mc1710CompatPath = targetCompatOutputPath("scripts/lib/Compat", "mc1710");
+      const mc1122CompatPath = targetCompatOutputPath("scripts/lib/Compat", "mc1122");
       expect(selector).toContain(
-        `function RTMX_loadCompatTarget_mc1710_${compatKey}() {\n  if (!(RTMX_COMPAT_TARGETS.mc1710 && RTMX_COMPAT_TARGETS.mc1710.${compatKey})) {\n    //include <__targets__/mc1710/scripts/lib/Compat.compat.js>\n  }\n  return (RTMX_COMPAT_TARGETS.mc1710 && RTMX_COMPAT_TARGETS.mc1710.${compatKey});\n}`
+        `function RTMX_loadCompatTarget_mc1710_${compatKey}() {\n  if (!(RTMX_COMPAT_TARGETS.mc1710 && RTMX_COMPAT_TARGETS.mc1710.${compatKey})) {\n    //include <__targets__/mc1710/${mc1710CompatPath}>\n  }\n  return (RTMX_COMPAT_TARGETS.mc1710 && RTMX_COMPAT_TARGETS.mc1710.${compatKey});\n}`
       );
       expect(selector).toContain(
-        `function RTMX_loadCompatTarget_mc1122_${compatKey}() {\n  if (!(RTMX_COMPAT_TARGETS.mc1122 && RTMX_COMPAT_TARGETS.mc1122.${compatKey})) {\n    //include <__targets__/mc1122/scripts/lib/Compat.compat.js>\n  }\n  return (RTMX_COMPAT_TARGETS.mc1122 && RTMX_COMPAT_TARGETS.mc1122.${compatKey});\n}`
+        `function RTMX_loadCompatTarget_mc1122_${compatKey}() {\n  if (!(RTMX_COMPAT_TARGETS.mc1122 && RTMX_COMPAT_TARGETS.mc1122.${compatKey})) {\n    //include <__targets__/mc1122/${mc1122CompatPath}>\n  }\n  return (RTMX_COMPAT_TARGETS.mc1122 && RTMX_COMPAT_TARGETS.mc1122.${compatKey});\n}`
       );
+      expect(path.basename(mc1710CompatPath)).not.toBe(path.basename(mc1122CompatPath));
+      expect(path.basename(mc1710CompatPath)).not.toBe("Compat.compat.js");
+      expect(
+        new Set([
+          path.basename(targetCompatOutputPath("scripts/a/Compat", "mc1710")),
+          path.basename(targetCompatOutputPath("scripts/b/Compat", "mc1710")),
+          path.basename(targetCompatOutputPath("scripts/a/Compat", "mc1122")),
+        ]).size
+      ).toBe(3);
       expect(selector).toContain(`function RTMX_selectCompatTarget_${compatKey}()`);
       expect(selector).toContain(
         "if (Packages.jp.ngt.rtm.RTMCore.VERSION.indexOf('1.7.10') >= 0) {"
@@ -486,7 +513,8 @@ RTMX_COMPAT_TARGETS.${target}.${compatModuleKey("scripts/lib/Compat")} = { helpe
 
       const kaizpatchCompat = path.join(
         outDir,
-        "assets/minecraft/__targets__/kaizpatch/scripts/lib/Compat.compat.js"
+        "assets/minecraft/__targets__/kaizpatch",
+        targetCompatOutputPath("scripts/lib/Compat", "kaizpatch")
       );
       mkdirSync(path.dirname(kaizpatchCompat), { recursive: true });
       writeFileSync(
@@ -499,7 +527,8 @@ RTMX_COMPAT_TARGETS.kaizpatch.${compatKey} = { Compat: { targetName: function ()
 
       const mc1710Compat = path.join(
         outDir,
-        "assets/minecraft/__targets__/mc1710/scripts/lib/Compat.compat.js"
+        "assets/minecraft/__targets__/mc1710",
+        targetCompatOutputPath("scripts/lib/Compat", "mc1710")
       );
       mkdirSync(path.dirname(mc1710Compat), { recursive: true });
       writeFileSync(

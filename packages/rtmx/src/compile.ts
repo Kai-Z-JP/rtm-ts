@@ -10,7 +10,7 @@ import { createNashornCompatTransformer } from "./transformers/nashornCompat.js"
 import { createRendererClassTransformer } from "./transformers/rendererClass.js";
 import { createUnicodeEscapeTransformer } from "./transformers/unicodeEscape.js";
 import { collectCommonApiDiagnostics } from "./commonApi.js";
-import { compatModuleKey, compatModuleVarName } from "./compatNames.js";
+import { compatModuleKey, compatModuleVarName, targetCompatOutputPath } from "./compatNames.js";
 
 export function compile(config: RtmxConfig): boolean {
   const mappings = loadMappings(config.mapping);
@@ -85,15 +85,29 @@ export function compile(config: RtmxConfig): boolean {
 
       const rel = getRelativeSourcePath(sourceTs, srcDirs);
       const outputRel = config.targetName ? stripMinecraftAssetPrefix(rel) : rel;
-      const outPath = path.join(config.outDir, outputRel.replace(/\.ts$/, ".js"));
+      const isTargetCompat = !!config.targetName && rel.replace(/\\/g, "/").endsWith(".compat.ts");
+      const outputJsRel = isTargetCompat
+        ? targetCompatOutputPath(
+            outputRel.replace(/\\/g, "/").replace(/\.compat\.ts$/, ""),
+            config.targetName!
+          )
+        : outputRel.replace(/\.ts$/, ".js");
+      const outPath = path.join(config.outDir, outputJsRel);
+      if (isTargetCompat) {
+        const legacyOutPath = path.join(config.outDir, outputRel.replace(/\.ts$/, ".js"));
+        if (path.resolve(legacyOutPath) !== path.resolve(outPath) && fs.existsSync(legacyOutPath)) {
+          fs.unlinkSync(legacyOutPath);
+        }
+      }
       fs.mkdirSync(path.dirname(outPath), { recursive: true });
       let output = stripModuleBoilerplate(text, outPath, config.outDir, {
         lazyJavaImports: config.lazyJavaImports ?? false,
         targetOutDir: config.targetName ? config.outDir : undefined,
+        targetName: config.targetName,
         commonOutDir: config.commonOutDir,
       });
-      if (config.targetName && rel.replace(/\\/g, "/").endsWith(".compat.ts")) {
-        output = registerTargetCompatModule(output, sourceTs, config.targetName, rel);
+      if (isTargetCompat) {
+        output = registerTargetCompatModule(output, sourceTs, config.targetName!, rel);
       }
       if (config.targetName && isWrappedEntry(rel, config.wrapEntries ?? [])) {
         output = wrapTargetEntry(output, config.targetName);
@@ -330,11 +344,16 @@ function stripModuleBoilerplate(
   text: string,
   outputFile: string,
   outDir: string,
-  options: { lazyJavaImports?: boolean; targetOutDir?: string; commonOutDir?: string } = {}
+  options: {
+    lazyJavaImports?: boolean;
+    targetOutDir?: string;
+    targetName?: string;
+    commonOutDir?: string;
+  } = {}
 ): string {
   const mcBase = resolveMcBase(outputFile, outDir);
   text = text.replace(/^require\("(\.\.?\/[^"]+)"\);\r?\n/gm, (_, relImport: string) => {
-    const resolved = path.resolve(path.dirname(outputFile), relImport + ".js");
+    const resolved = resolveRelativeOutputModule(outputFile, relImport, options);
     const includePath = path.relative(mcBase, resolved).replace(/\\/g, "/");
     return `//include <${includePath}>\n`;
   });
@@ -348,7 +367,7 @@ function stripModuleBoilerplate(
     (whole, varName: string, moduleName: string) => {
       if (moduleName.startsWith(".")) {
         // 相対 require → //include に変換
-        const resolved = path.resolve(path.dirname(outputFile), moduleName + ".js");
+        const resolved = resolveRelativeOutputModule(outputFile, moduleName, options);
         const includePath = path.relative(mcBase, resolved).replace(/\\/g, "/");
         includeVars.set(varName, undefined);
         return `//include <${includePath}>\n`;
@@ -356,7 +375,7 @@ function stripModuleBoilerplate(
       if (moduleName.startsWith("@target/") && options.targetOutDir) {
         const modulePath = stripMinecraftAssetPrefix(moduleName.slice("@target/".length));
         const resolved =
-          resolveCompiledTargetModule(options.targetOutDir, modulePath) ??
+          resolveCompiledTargetModule(options.targetOutDir, modulePath, options.targetName) ??
           path.resolve(options.targetOutDir, modulePath + ".js");
         const includePath = path.relative(mcBase, resolved).replace(/\\/g, "/");
         includeVars.set(varName, undefined);
@@ -379,7 +398,7 @@ function stripModuleBoilerplate(
           (options.commonOutDir
             ? resolveCompiledCommonModule(options.commonOutDir, modulePath, ".js")
             : undefined) ??
-          resolveCompiledTargetModule(options.targetOutDir, modulePath) ??
+          resolveCompiledTargetModule(options.targetOutDir, modulePath, options.targetName) ??
           path.resolve(options.targetOutDir, modulePath + ".js");
         const includePath = path.relative(mcBase, resolved).replace(/\\/g, "/");
         includeVars.set(varName, undefined);
@@ -437,9 +456,39 @@ function stripModuleBoilerplate(
   return text;
 }
 
-function resolveCompiledTargetModule(targetOutDir: string, modulePath: string): string | undefined {
+function resolveRelativeOutputModule(
+  outputFile: string,
+  moduleName: string,
+  options: { targetOutDir?: string; targetName?: string }
+): string {
+  const resolvedModule = path.resolve(path.dirname(outputFile), moduleName);
+  if (
+    options.targetOutDir &&
+    options.targetName &&
+    moduleName.replace(/\\/g, "/").endsWith(".compat")
+  ) {
+    const modulePath = path
+      .relative(options.targetOutDir, resolvedModule)
+      .replace(/\\/g, "/")
+      .replace(/\.compat$/, "");
+    return path.resolve(
+      options.targetOutDir,
+      targetCompatOutputPath(modulePath, options.targetName)
+    );
+  }
+  return `${resolvedModule}.js`;
+}
+
+function resolveCompiledTargetModule(
+  targetOutDir: string,
+  modulePath: string,
+  targetName?: string
+): string | undefined {
   const basePath = path.resolve(targetOutDir, modulePath);
   const candidates = [
+    ...(targetName
+      ? [path.resolve(targetOutDir, targetCompatOutputPath(modulePath, targetName))]
+      : []),
     `${basePath}.js`,
     `${basePath}.compat.js`,
     path.join(basePath, "index.js"),

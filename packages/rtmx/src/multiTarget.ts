@@ -2,7 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 import type { MultiTargetConfig } from "./config.js";
 import { stripMinecraftAssetPrefix } from "./compile.js";
-import { compatModuleKey, compatModuleVarName, compatSelectFunctionName } from "./compatNames.js";
+import {
+  compatModuleKey,
+  compatModuleVarName,
+  compatSelectFunctionName,
+  targetCompatOutputPath,
+} from "./compatNames.js";
 
 export function generateDispatchers(config: MultiTargetConfig): void {
   generateCompatSelectors(config);
@@ -24,7 +29,10 @@ export function generateCompatSelectors(config: MultiTargetConfig): void {
     const lines: string[] = [];
     lines.push("var RTMX_COMPAT_TARGETS = RTMX_COMPAT_TARGETS || {};");
     for (const [targetName, target] of Object.entries(config.targets)) {
-      const targetCompatPath = path.join(target.outDir, `${modulePath}.compat.js`);
+      const targetCompatPath = path.join(
+        target.outDir,
+        targetCompatOutputPath(modulePath, targetName)
+      );
       lines.push(`function ${compatLoadFunctionName(targetName, moduleKey)}() {`);
       if (fs.existsSync(targetCompatPath)) {
         lines.push(`  if (!${targetModuleExpression(targetName, moduleKey)}) {`);
