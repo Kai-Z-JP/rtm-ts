@@ -27,6 +27,24 @@ const emoji = "😀";`,
     expect(js).toContain('"\\u65E5\\u672C\\u8A9E:".concat(value)');
   });
 
+  it("正規表現の非 ASCII 文字を Unicode escape にする", () => {
+    const { js } = transform(
+      `const pattern = /日本語😀[値]/gi;
+const alreadyEscaped = /\\u65E5本/;`,
+      makeTransformers
+    );
+
+    expect(js).toContain("var pattern = /\\u65E5\\u672C\\u8A9E\\uD83D\\uDE00[\\u5024]/gi");
+    expect(js).toContain("var alreadyEscaped = /\\u65E5\\u672C/");
+  });
+
+  it("正規表現の identity escape を Unicode escape にして意味を保つ", () => {
+    const { js } = transform(`const pattern = /\\日/;`, makeTransformers);
+
+    expect(js).toContain("var pattern = /\\u65E5/");
+    expect(js).not.toContain("var pattern = /\\\\u65E5/");
+  });
+
   it("モジュール指定子はパス解決のため元の表記を保つ", () => {
     const { js } = transform(
       `import "./日本語";
@@ -45,5 +63,11 @@ const text = "本文";`,
     const { js } = transform(`const text = /* 内側 */ "日本語";`, makeTransformers);
 
     expect(js).toContain('/* 内側 */ "\\u65E5\\u672C\\u8A9E"');
+  });
+
+  it("正規表現に付いたコメントを維持する", () => {
+    const { js } = transform(`const pattern = /* 内側 */ /日本語/;`, makeTransformers);
+
+    expect(js).toContain("/* 内側 */ /\\u65E5\\u672C\\u8A9E/");
   });
 });

@@ -26,6 +26,7 @@ describe("compile", () => {
         `import { helper } from "./日本語";
 var normal = "日本語😀";
 var template = \`日本語\`;
+var pattern = /日本語😀/gi;
 var fromModule = helper();
 `,
         "utf-8"
@@ -47,6 +48,7 @@ var fromModule = helper();
       expect(mainJs).toContain("//include <dist/日本語.js>");
       expect(mainJs).toContain('var normal = "\\u65E5\\u672C\\u8A9E\\uD83D\\uDE00"');
       expect(mainJs).toContain('var template = "\\u65E5\\u672C\\u8A9E"');
+      expect(mainJs).toContain("var pattern = /\\u65E5\\u672C\\u8A9E\\uD83D\\uDE00/gi");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

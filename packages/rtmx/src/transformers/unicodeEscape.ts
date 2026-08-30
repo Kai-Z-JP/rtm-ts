@@ -1,8 +1,8 @@
 import ts from "typescript";
 
 /**
- * Runtime string literals containing non-ASCII characters are recreated as
- * synthesized nodes so the TypeScript emitter writes them as `\uXXXX`.
+ * Runtime string and regular expression literals containing non-ASCII
+ * characters are emitted using `\uXXXX` escapes.
  *
  * Module specifiers must keep their source representation because the
  * post-emit include conversion resolves the emitted text as a file path.
@@ -31,11 +31,44 @@ export function createUnicodeEscapeTransformer(): ts.TransformerFactory<ts.Sourc
         return escaped;
       }
 
+      if (ts.isRegularExpressionLiteral(node) && containsNonAscii(node.text)) {
+        const escaped = ts.factory.createRegularExpressionLiteral(
+          escapeRegularExpressionNonAscii(node.text)
+        );
+
+        ts.setCommentRange(escaped, node);
+        ts.setSourceMapRange(escaped, node);
+        return escaped;
+      }
+
       return ts.visitEachChild(node, visit, context);
     };
 
     return (sourceFile) => ts.visitNode(sourceFile, visit) as ts.SourceFile;
   };
+}
+
+function escapeRegularExpressionNonAscii(text: string): string {
+  let escaped = "";
+  let consecutiveBackslashes = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const codeUnit = text.charCodeAt(i);
+    if (codeUnit <= 0x7f) {
+      escaped += text[i];
+      consecutiveBackslashes = text[i] === "\\" ? consecutiveBackslashes + 1 : 0;
+      continue;
+    }
+
+    // In non-Unicode regexes, a backslash followed by a non-ASCII character
+    // can be an identity escape (for example /\日/). Reuse that backslash
+    // instead of adding another one so the matched pattern stays unchanged.
+    if (consecutiveBackslashes % 2 === 0) escaped += "\\";
+    escaped += `u${codeUnit.toString(16).toUpperCase().padStart(4, "0")}`;
+    consecutiveBackslashes = 0;
+  }
+
+  return escaped;
 }
 
 function containsNonAscii(text: string): boolean {
